@@ -1,12 +1,12 @@
 # Three-way payment reconciliation engine
 
-[![tests](https://github.com/rahulpaul-07/recon-engine/actions/workflows/tests.yml/badge.svg)](https://github.com/rahulpaul-07/recon-engine/actions/workflows/tests.yml)
-[![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://github.com/rahulpaul-07/recon-engine/actions)
+[![tests](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions/workflows/tests.yml/badge.svg)](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions/workflows/tests.yml)
+[![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions)
 [![tests](https://img.shields.io/badge/tests-111%20passing-brightgreen)](tests/)
 [![accuracy](https://img.shields.io/badge/classification-100%25%20vs%20answer%20key-brightgreen)](#results)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
-**[Live report]([https://rahulpaul-07.github.io/recon-engine/](https://rahulpaul-07.github.io/Three-Way-Financial-Reconciliation-Engine/))** — generated
+**[Live report](https://rahulpaul-07.github.io/Three-Way-Financial-Reconciliation-Engine/)** — generated
 output from the run described below: match rate, per-class metrics against the
 answer key, every exception with its reason, and the agent's full investigation
 trace for each one.
