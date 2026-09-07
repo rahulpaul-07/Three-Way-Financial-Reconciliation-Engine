@@ -6,7 +6,7 @@
 [![accuracy](https://img.shields.io/badge/classification-100%25%20vs%20answer%20key-brightgreen)](#results)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
-**[Live report](https://rahulpaul-07.github.io/recon-engine/)** — generated
+**[Live report]([https://rahulpaul-07.github.io/recon-engine/](https://rahulpaul-07.github.io/Three-Way-Financial-Reconciliation-Engine/))** — generated
 output from the run described below: match rate, per-class metrics against the
 answer key, every exception with its reason, and the agent's full investigation
 trace for each one.
