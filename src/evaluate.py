@@ -411,9 +411,164 @@ def run_stress(scales: list[float], orders: int, seeds: int,
     print()
 
 
+# --------------------------------------------------------------------------
+# Detection grading -- defect classes the engine has no label for
+# --------------------------------------------------------------------------
+
+@dataclass
+class DetectionOutcome:
+    entity_id: str
+    planted: str            # the unseen class that was planted
+    emitted: str | None     # what the engine said, or None if it said nothing
+    state: str              # detected | silent_clean | silent_absent
+
+
+def load_unseen_truth(datadir: Path) -> dict[str, str]:
+    """
+    Truth rows marked `outside_taxonomy`, produced by adversarial_data.py.
+
+    Returns {entity_id: planted_class}. A ground truth file without the column
+    yields an empty mapping, so ordinary datasets pass through unaffected.
+    """
+    path = datadir / "ground_truth.csv"
+    with path.open(encoding="utf-8-sig") as f:
+        return {r["entity_id"]: r["expected_classification"]
+                for r in csv.DictReader(f)
+                if (r.get("outside_taxonomy") or "no").strip().lower() == "yes"}
+
+
+def grade_detection(datadir: Path) -> tuple[list[DetectionOutcome], dict]:
+    """
+    Score the engine on defects it was never designed to name.
+
+    Classification accuracy is not the metric here and cannot be: the engine
+    has no `currency_mismatch` class, so accuracy on these records is
+    structurally zero and measures nothing. The question is whether the engine
+    refused to call a broken record clean.
+
+    Iterating over TRUTH rather than over resolutions is deliberate and is the
+    part worth understanding. `grade` above walks the engine's resolutions and
+    looks each one up in the answer key, so an entity the engine never
+    mentioned is never graded -- it simply does not appear in the loop. For
+    known defects that is harmless, because every planted defect belongs to an
+    entity the engine reports on anyway. For unseen defects it is not: the
+    most dangerous failure is a broken record the engine never examined at all,
+    and a resolution-driven loop is structurally blind to exactly that case.
+    """
+    orders, txns, settlements, bank = load(datadir)
+    resolutions = Engine(orders, txns, settlements, bank).run()
+    emitted = {r.entity_id: r.classification for r in resolutions}
+
+    planted = load_unseen_truth(datadir)
+    outcomes: list[DetectionOutcome] = []
+
+    for eid, cls in sorted(planted.items()):
+        # The engine does not always report against the entity id in the answer
+        # key. A statement-continuity break is emitted against a derived id --
+        # `GAP_BEFORE_<row>` -- because the gap describes the space between two
+        # rows rather than either row itself. That row may ALSO carry its own
+        # `clean` resolution, so the question is not what the first lookup
+        # returns; it is whether the engine said anything non-clean about the
+        # record at all. Aliases are listed explicitly: guessing at name shapes
+        # would let a genuine miss be excused by a coincidental key.
+        signals = [emitted[k] for k in (eid, f"GAP_BEFORE_{eid}")
+                   if k in emitted]
+        flagged = [s for s in signals if s != "clean"]
+
+        if flagged:
+            state, got = "detected", flagged[0]
+        elif signals:
+            state, got = "silent_clean", "clean"
+        else:
+            state, got = "silent_absent", None
+        outcomes.append(DetectionOutcome(eid, cls, got, state))
+
+    by_class: dict[str, Counter] = defaultdict(Counter)
+    labels: dict[str, Counter] = defaultdict(Counter)
+    for o in outcomes:
+        by_class[o.planted][o.state] += 1
+        if o.state == "detected":
+            labels[o.planted][o.emitted] += 1
+
+    total = len(outcomes)
+    detected = sum(1 for o in outcomes if o.state == "detected")
+    silent = total - detected
+    lo, hi = wilson_interval(detected, total) if total else (0.0, 0.0)
+
+    summary = {
+        "total": total,
+        "detected": detected,
+        "silent": silent,
+        "detection_rate": detected / total if total else 0.0,
+        "detection_ci": (lo, hi),
+        "by_class": {k: dict(v) for k, v in by_class.items()},
+        "labels": {k: dict(v) for k, v in labels.items()},
+    }
+    return outcomes, summary
+
+
+def print_detection_report(outcomes: list[DetectionOutcome],
+                           summary: dict) -> None:
+    if not summary["total"]:
+        print("No records marked `outside_taxonomy` in this dataset.")
+        print("Generate one with:  python src/adversarial_data.py")
+        return
+
+    print("=" * 74)
+    print("DETECTION ON UNSEEN DEFECT CLASSES")
+    print("=" * 74)
+    print("The engine has no label for any class below. Classification")
+    print("accuracy is therefore structurally zero and is not reported.")
+    print("The question asked is only: did it refuse to call the record clean?")
+    print()
+
+    lo, hi = summary["detection_ci"]
+    print(f"  planted          {summary['total']}")
+    print(f"  detected         {summary['detected']}")
+    print(f"  silent pass      {summary['silent']}")
+    print(f"  detection rate   {summary['detection_rate']:6.1%}  "
+          f"[{lo:.1%}, {hi:.1%}] 95% Wilson")
+    print()
+
+    print(f"  {'planted class':<26}{'n':>4}{'det':>6}{'clean':>7}{'absent':>8}")
+    print("  " + "-" * 51)
+    for cls in sorted(summary["by_class"]):
+        c = summary["by_class"][cls]
+        n = sum(c.values())
+        print(f"  {cls:<26}{n:>4}{c.get('detected', 0):>6}"
+              f"{c.get('silent_clean', 0):>7}{c.get('silent_absent', 0):>8}")
+    print()
+
+    if summary["labels"]:
+        print("  Labels emitted where a defect WAS detected. The engine cannot")
+        print("  name these classes, so every label here is by definition")
+        print("  wrong -- what matters is whether it misdirects an analyst.")
+        print()
+        for cls in sorted(summary["labels"]):
+            got = ", ".join(f"{k} x{v}" for k, v in
+                            sorted(summary["labels"][cls].items()))
+            print(f"    {cls:<26} -> {got}")
+        print()
+
+    silent = [o for o in outcomes if o.state != "detected"]
+    if silent:
+        print("  SILENT PASSES -- broken records the engine did not flag:")
+        print()
+        for o in silent[:20]:
+            why = ("classified clean" if o.state == "silent_clean"
+                   else "never examined; no resolution emitted")
+            print(f"    {o.entity_id:<18} {o.planted:<26} {why}")
+        if len(silent) > 20:
+            print(f"    ... and {len(silent) - 20} more")
+        print()
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data", default="data")
+    ap.add_argument("--detection", action="store_true",
+                    help="grade detection of defect classes outside the "
+                         "engine's taxonomy (see adversarial_data.py)")
     ap.add_argument("--seeds", type=int, default=0,
                     help="run variance analysis across N seeds")
     ap.add_argument("--orders", type=int, default=120)
@@ -428,7 +583,10 @@ def main() -> None:
     workdir = Path(args.workdir)
     workdir.mkdir(exist_ok=True)
 
-    if args.stress:
+    if args.detection:
+        outcomes, summary = grade_detection(Path(args.data))
+        print_detection_report(outcomes, summary)
+    elif args.stress:
         run_stress([1.0, 2.0, 3.0, 4.0, 6.0], args.orders,
                    args.seeds or 3, workdir, compound=args.compound)
     elif args.seeds:
