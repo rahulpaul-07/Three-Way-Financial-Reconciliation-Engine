@@ -1,0 +1,328 @@
+entity_id,entity_type,expected_classification,expected_match_target,notes,outside_taxonomy
+BNK000002,bank_row,messy_narration,setl_0001,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
+BNK000003,bank_row,messy_narration,setl_0002,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
+BNK000004,bank_row,messy_narration,setl_0003,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
+BNK000006,bank_row,balance_inconsistency,,"balance column overstates by 7500 paise against this row's own credit and debit; no line is missing, the statement is internally wrong",yes
+BNK000008,bank_row,messy_narration,setl_0007,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
+BNK000009,bank_row,messy_narration,setl_0008,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
+BNK000011,bank_row,messy_narration,setl_0010,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
+BNK000017,bank_row,messy_narration,setl_0016,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
+BNK000018,bank_row,messy_narration,setl_0017,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
+BNK000023,bank_row,balance_inconsistency,,"balance column overstates by 31000 paise against this row's own credit and debit; no line is missing, the statement is internally wrong",yes
+BNK000028,bank_row,messy_narration,setl_0027,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
+BNK000031,bank_row,split_settlement,setl_0014,"settlement setl_0014 paid in two instalments; this line carries part of the total, so no single statement line ties to the settlement",yes
+BNK000032,bank_row,split_settlement,setl_0014,"settlement setl_0014 paid in two instalments; this line carries part of the total, so no single statement line ties to the settlement",yes
+BNK000033,bank_row,split_settlement,setl_0025,"settlement setl_0025 paid in two instalments; this line carries part of the total, so no single statement line ties to the settlement",yes
+BNK000034,bank_row,split_settlement,setl_0025,"settlement setl_0025 paid in two instalments; this line carries part of the total, so no single statement line ties to the settlement",yes
+BNK000035,bank_row,split_settlement,setl_0006,"settlement setl_0006 paid in two instalments; this line carries part of the total, so no single statement line ties to the settlement",yes
+BNK000036,bank_row,split_settlement,setl_0006,"settlement setl_0006 paid in two instalments; this line carries part of the total, so no single statement line ties to the settlement",yes
+BNK000037,bank_row,payout_reversal,setl_0009,"payout for setl_0009 was returned; the original credit still reconciles, so the books look settled while the money is no longer there",yes
+BNK000038,bank_row,payout_reversal,setl_0024,"payout for setl_0024 was returned; the original credit still reconciles, so the books look settled while the money is no longer there",yes
+BNK000039,bank_row,duplicate_bank_row,setl_0021,exact duplicate of the credit for setl_0021; if both are accepted the settlement is reconciled twice and the statement total is overstated,yes
+BNK000040,bank_row,duplicate_bank_row,setl_0019,exact duplicate of the credit for setl_0019; if both are accepted the settlement is reconciled twice and the statement total is overstated,yes
+BNK000041,bank_row,duplicate_bank_row,setl_0020,exact duplicate of the credit for setl_0020; if both are accepted the settlement is reconciled twice and the statement total is overstated,yes
+ORD4000,order,clean,,matches 1:1 with its payment,no
+ORD4001,order,clean,,matches 1:1 with its payment,no
+ORD4002,order,clean,,matches 1:1 with its payment,no
+ORD4003,order,clean,,matches 1:1 with its payment,no
+ORD4004,order,clean,,matches 1:1 with its payment,no
+ORD4005,order,clean,,matches 1:1 with its payment,no
+ORD4006,order,clean,,matches 1:1 with its payment,no
+ORD4007,order,clean,,matches 1:1 with its payment,no
+ORD4008,order,clean,,matches 1:1 with its payment,no
+ORD4009,order,clean,,matches 1:1 with its payment,no
+ORD4010,order,clean,,matches 1:1 with its payment,no
+ORD4011,order,clean,,matches 1:1 with its payment,no
+ORD4012,order,clean,,matches 1:1 with its payment,no
+ORD4013,order,clean,,matches 1:1 with its payment,no
+ORD4014,order,clean,,matches 1:1 with its payment,no
+ORD4015,order,clean,,matches 1:1 with its payment,no
+ORD4016,order,clean,,matches 1:1 with its payment,no
+ORD4017,order,clean,,matches 1:1 with its payment,no
+ORD4018,order,clean,,matches 1:1 with its payment,no
+ORD4019,order,clean,,matches 1:1 with its payment,no
+ORD4020,order,clean,,matches 1:1 with its payment,no
+ORD4021,order,clean,,matches 1:1 with its payment,no
+ORD4022,order,clean,,matches 1:1 with its payment,no
+ORD4023,order,clean,,matches 1:1 with its payment,no
+ORD4024,order,refund,rfnd_000301,fully refunded; the order-level classification is correct and is not the defect under test,no
+ORD4025,order,clean,,matches 1:1 with its payment,no
+ORD4026,order,clean,,matches 1:1 with its payment,no
+ORD4027,order,clean,,matches 1:1 with its payment,no
+ORD4028,order,clean,,matches 1:1 with its payment,no
+ORD4029,order,clean,,matches 1:1 with its payment,no
+ORD4030,order,clean,,matches 1:1 with its payment,no
+ORD4031,order,clean,,matches 1:1 with its payment,no
+ORD4032,order,clean,,matches 1:1 with its payment,no
+ORD4033,order,clean,,matches 1:1 with its payment,no
+ORD4034,order,clean,,matches 1:1 with its payment,no
+ORD4035,order,clean,,matches 1:1 with its payment,no
+ORD4036,order,clean,,matches 1:1 with its payment,no
+ORD4037,order,clean,,matches 1:1 with its payment,no
+ORD4038,order,clean,,matches 1:1 with its payment,no
+ORD4039,order,clean,,matches 1:1 with its payment,no
+ORD4040,order,clean,,matches 1:1 with its payment,no
+ORD4041,order,clean,,matches 1:1 with its payment,no
+ORD4042,order,clean,,matches 1:1 with its payment,no
+ORD4043,order,clean,,matches 1:1 with its payment,no
+ORD4044,order,clean,,matches 1:1 with its payment,no
+ORD4045,order,clean,,matches 1:1 with its payment,no
+ORD4046,order,clean,,matches 1:1 with its payment,no
+ORD4047,order,clean,,matches 1:1 with its payment,no
+ORD4048,order,clean,,matches 1:1 with its payment,no
+ORD4049,order,clean,,matches 1:1 with its payment,no
+ORD4050,order,clean,,matches 1:1 with its payment,no
+ORD4051,order,clean,,matches 1:1 with its payment,no
+ORD4052,order,clean,,matches 1:1 with its payment,no
+ORD4053,order,clean,,matches 1:1 with its payment,no
+ORD4054,order,clean,,matches 1:1 with its payment,no
+ORD4055,order,clean,,matches 1:1 with its payment,no
+ORD4056,order,clean,,matches 1:1 with its payment,no
+ORD4057,order,currency_mismatch,,ledger records this order in SGD while the gateway and bank are in INR; the amounts tie only because the unit is never checked,yes
+ORD4058,order,clean,,matches 1:1 with its payment,no
+ORD4059,order,clean,,matches 1:1 with its payment,no
+ORD4060,order,clean,,matches 1:1 with its payment,no
+ORD4061,order,clean,,matches 1:1 with its payment,no
+ORD4062,order,clean,,matches 1:1 with its payment,no
+ORD4063,order,clean,,matches 1:1 with its payment,no
+ORD4064,order,clean,,matches 1:1 with its payment,no
+ORD4065,order,clean,,matches 1:1 with its payment,no
+ORD4066,order,clean,,matches 1:1 with its payment,no
+ORD4067,order,clean,,matches 1:1 with its payment,no
+ORD4068,order,clean,,matches 1:1 with its payment,no
+ORD4069,order,clean,,matches 1:1 with its payment,no
+ORD4070,order,clean,,matches 1:1 with its payment,no
+ORD4071,order,clean,,matches 1:1 with its payment,no
+ORD4072,order,clean,,matches 1:1 with its payment,no
+ORD4073,order,clean,,matches 1:1 with its payment,no
+ORD4074,order,clean,,matches 1:1 with its payment,no
+ORD4075,order,clean,,matches 1:1 with its payment,no
+ORD4076,order,clean,,matches 1:1 with its payment,no
+ORD4077,order,clean,,matches 1:1 with its payment,no
+ORD4078,order,refund,rfnd_000303,fully refunded; the order-level classification is correct and is not the defect under test,no
+ORD4079,order,clean,,matches 1:1 with its payment,no
+ORD4080,order,clean,,matches 1:1 with its payment,no
+ORD4081,order,clean,,matches 1:1 with its payment,no
+ORD4082,order,clean,,matches 1:1 with its payment,no
+ORD4083,order,clean,,matches 1:1 with its payment,no
+ORD4084,order,clean,,matches 1:1 with its payment,no
+ORD4085,order,clean,,matches 1:1 with its payment,no
+ORD4086,order,clean,,matches 1:1 with its payment,no
+ORD4087,order,clean,,matches 1:1 with its payment,no
+ORD4088,order,clean,,matches 1:1 with its payment,no
+ORD4089,order,clean,,matches 1:1 with its payment,no
+ORD4090,order,clean,,matches 1:1 with its payment,no
+ORD4091,order,currency_mismatch,,ledger records this order in AED while the gateway and bank are in INR; the amounts tie only because the unit is never checked,yes
+ORD4092,order,clean,,matches 1:1 with its payment,no
+ORD4093,order,clean,,matches 1:1 with its payment,no
+ORD4094,order,clean,,matches 1:1 with its payment,no
+ORD4095,order,clean,,matches 1:1 with its payment,no
+ORD4096,order,clean,,matches 1:1 with its payment,no
+ORD4097,order,clean,,matches 1:1 with its payment,no
+ORD4098,order,clean,,matches 1:1 with its payment,no
+ORD4099,order,clean,,matches 1:1 with its payment,no
+ORD4100,order,clean,,matches 1:1 with its payment,no
+ORD4101,order,clean,,matches 1:1 with its payment,no
+ORD4102,order,clean,,matches 1:1 with its payment,no
+ORD4103,order,clean,,matches 1:1 with its payment,no
+ORD4104,order,clean,,matches 1:1 with its payment,no
+ORD4105,order,clean,,matches 1:1 with its payment,no
+ORD4106,order,clean,,matches 1:1 with its payment,no
+ORD4107,order,clean,,matches 1:1 with its payment,no
+ORD4108,order,clean,,matches 1:1 with its payment,no
+ORD4109,order,clean,,matches 1:1 with its payment,no
+ORD4110,order,clean,,matches 1:1 with its payment,no
+ORD4111,order,clean,,matches 1:1 with its payment,no
+ORD4112,order,clean,,matches 1:1 with its payment,no
+ORD4113,order,clean,,matches 1:1 with its payment,no
+ORD4114,order,clean,,matches 1:1 with its payment,no
+ORD4115,order,clean,,matches 1:1 with its payment,no
+ORD4116,order,clean,,matches 1:1 with its payment,no
+ORD4117,order,clean,,matches 1:1 with its payment,no
+ORD4118,order,clean,,matches 1:1 with its payment,no
+ORD4119,order,clean,,matches 1:1 with its payment,no
+ORD4120,order,clean,,matches 1:1 with its payment,no
+ORD4121,order,clean,,matches 1:1 with its payment,no
+ORD4122,order,clean,,matches 1:1 with its payment,no
+ORD4123,order,clean,,matches 1:1 with its payment,no
+ORD4124,order,clean,,matches 1:1 with its payment,no
+ORD4125,order,clean,,matches 1:1 with its payment,no
+ORD4126,order,clean,,matches 1:1 with its payment,no
+ORD4127,order,clean,,matches 1:1 with its payment,no
+ORD4128,order,clean,,matches 1:1 with its payment,no
+ORD4129,order,clean,,matches 1:1 with its payment,no
+ORD4130,order,clean,,matches 1:1 with its payment,no
+ORD4131,order,clean,,matches 1:1 with its payment,no
+ORD4132,order,clean,,matches 1:1 with its payment,no
+ORD4133,order,clean,,matches 1:1 with its payment,no
+ORD4134,order,clean,,matches 1:1 with its payment,no
+ORD4135,order,clean,,matches 1:1 with its payment,no
+ORD4136,order,clean,,matches 1:1 with its payment,no
+ORD4137,order,clean,,matches 1:1 with its payment,no
+ORD4138,order,clean,,matches 1:1 with its payment,no
+ORD4139,order,clean,,matches 1:1 with its payment,no
+ORD4140,order,clean,,matches 1:1 with its payment,no
+ORD4141,order,clean,,matches 1:1 with its payment,no
+ORD4142,order,clean,,matches 1:1 with its payment,no
+ORD4143,order,clean,,matches 1:1 with its payment,no
+ORD4144,order,clean,,matches 1:1 with its payment,no
+ORD4145,order,clean,,matches 1:1 with its payment,no
+ORD4146,order,clean,,matches 1:1 with its payment,no
+ORD4147,order,clean,,matches 1:1 with its payment,no
+ORD4148,order,clean,,matches 1:1 with its payment,no
+ORD4149,order,clean,,matches 1:1 with its payment,no
+ORD4150,order,clean,,matches 1:1 with its payment,no
+ORD4151,order,clean,,matches 1:1 with its payment,no
+ORD4152,order,clean,,matches 1:1 with its payment,no
+ORD4153,order,clean,,matches 1:1 with its payment,no
+ORD4154,order,clean,,matches 1:1 with its payment,no
+ORD4155,order,clean,,matches 1:1 with its payment,no
+ORD4156,order,clean,,matches 1:1 with its payment,no
+ORD4157,order,clean,,matches 1:1 with its payment,no
+ORD4158,order,clean,,matches 1:1 with its payment,no
+ORD4159,order,clean,,matches 1:1 with its payment,no
+ORD4160,order,clean,,matches 1:1 with its payment,no
+ORD4161,order,clean,,matches 1:1 with its payment,no
+ORD4162,order,clean,,matches 1:1 with its payment,no
+ORD4163,order,clean,,matches 1:1 with its payment,no
+ORD4164,order,clean,,matches 1:1 with its payment,no
+ORD4165,order,clean,,matches 1:1 with its payment,no
+ORD4166,order,clean,,matches 1:1 with its payment,no
+ORD4167,order,clean,,matches 1:1 with its payment,no
+ORD4168,order,clean,,matches 1:1 with its payment,no
+ORD4169,order,clean,,matches 1:1 with its payment,no
+ORD4170,order,clean,,matches 1:1 with its payment,no
+ORD4171,order,clean,,matches 1:1 with its payment,no
+ORD4172,order,clean,,matches 1:1 with its payment,no
+ORD4173,order,clean,,matches 1:1 with its payment,no
+ORD4174,order,clean,,matches 1:1 with its payment,no
+ORD4175,order,clean,,matches 1:1 with its payment,no
+ORD4176,order,clean,,matches 1:1 with its payment,no
+ORD4177,order,clean,,matches 1:1 with its payment,no
+ORD4178,order,clean,,matches 1:1 with its payment,no
+ORD4179,order,amount_transposition,,ledger amount 210000 is 120000 with two digits transposed; gateway and bank carry the original,yes
+ORD4180,order,clean,,matches 1:1 with its payment,no
+ORD4181,order,clean,,matches 1:1 with its payment,no
+ORD4182,order,clean,,matches 1:1 with its payment,no
+ORD4183,order,clean,,matches 1:1 with its payment,no
+ORD4184,order,clean,,matches 1:1 with its payment,no
+ORD4185,order,clean,,matches 1:1 with its payment,no
+ORD4186,order,clean,,matches 1:1 with its payment,no
+ORD4187,order,clean,,matches 1:1 with its payment,no
+ORD4188,order,clean,,matches 1:1 with its payment,no
+ORD4189,order,clean,,matches 1:1 with its payment,no
+ORD4190,order,clean,,matches 1:1 with its payment,no
+ORD4191,order,clean,,matches 1:1 with its payment,no
+ORD4192,order,clean,,matches 1:1 with its payment,no
+ORD4193,order,clean,,matches 1:1 with its payment,no
+ORD4194,order,clean,,matches 1:1 with its payment,no
+ORD4195,order,clean,,matches 1:1 with its payment,no
+ORD4196,order,clean,,matches 1:1 with its payment,no
+ORD4197,order,clean,,matches 1:1 with its payment,no
+ORD4198,order,clean,,matches 1:1 with its payment,no
+ORD4199,order,clean,,matches 1:1 with its payment,no
+ORD4200,order,clean,,matches 1:1 with its payment,no
+ORD4201,order,clean,,matches 1:1 with its payment,no
+ORD4202,order,clean,,matches 1:1 with its payment,no
+ORD4203,order,clean,,matches 1:1 with its payment,no
+ORD4204,order,clean,,matches 1:1 with its payment,no
+ORD4205,order,clean,,matches 1:1 with its payment,no
+ORD4206,order,clean,,matches 1:1 with its payment,no
+ORD4207,order,clean,,matches 1:1 with its payment,no
+ORD4208,order,clean,,matches 1:1 with its payment,no
+ORD4209,order,clean,,matches 1:1 with its payment,no
+ORD4210,order,clean,,matches 1:1 with its payment,no
+ORD4211,order,clean,,matches 1:1 with its payment,no
+ORD4212,order,clean,,matches 1:1 with its payment,no
+ORD4213,order,clean,,matches 1:1 with its payment,no
+ORD4214,order,clean,,matches 1:1 with its payment,no
+ORD4215,order,clean,,matches 1:1 with its payment,no
+ORD4216,order,clean,,matches 1:1 with its payment,no
+ORD4217,order,clean,,matches 1:1 with its payment,no
+ORD4218,order,clean,,matches 1:1 with its payment,no
+ORD4219,order,amount_transposition,,ledger amount 43900 is 34900 with two digits transposed; gateway and bank carry the original,yes
+ORD4220,order,clean,,matches 1:1 with its payment,no
+ORD4221,order,clean,,matches 1:1 with its payment,no
+ORD4222,order,clean,,matches 1:1 with its payment,no
+ORD4223,order,clean,,matches 1:1 with its payment,no
+ORD4224,order,clean,,matches 1:1 with its payment,no
+ORD4225,order,clean,,matches 1:1 with its payment,no
+ORD4226,order,clean,,matches 1:1 with its payment,no
+ORD4227,order,clean,,matches 1:1 with its payment,no
+ORD4228,order,clean,,matches 1:1 with its payment,no
+ORD4229,order,clean,,matches 1:1 with its payment,no
+ORD4230,order,clean,,matches 1:1 with its payment,no
+ORD4231,order,clean,,matches 1:1 with its payment,no
+ORD4232,order,clean,,matches 1:1 with its payment,no
+ORD4233,order,clean,,matches 1:1 with its payment,no
+ORD4234,order,clean,,matches 1:1 with its payment,no
+ORD4235,order,clean,,matches 1:1 with its payment,no
+ORD4236,order,clean,,matches 1:1 with its payment,no
+ORD4237,order,clean,,matches 1:1 with its payment,no
+ORD4238,order,clean,,matches 1:1 with its payment,no
+ORD4239,order,clean,,matches 1:1 with its payment,no
+ORD4240,order,clean,,matches 1:1 with its payment,no
+ORD4241,order,clean,,matches 1:1 with its payment,no
+ORD4242,order,clean,,matches 1:1 with its payment,no
+ORD4243,order,clean,,matches 1:1 with its payment,no
+ORD4244,order,clean,,matches 1:1 with its payment,no
+ORD4245,order,clean,,matches 1:1 with its payment,no
+ORD4246,order,clean,,matches 1:1 with its payment,no
+ORD4247,order,clean,,matches 1:1 with its payment,no
+ORD4248,order,clean,,matches 1:1 with its payment,no
+ORD4249,order,clean,,matches 1:1 with its payment,no
+ORD4250,order,clean,,matches 1:1 with its payment,no
+ORD4251,order,clean,,matches 1:1 with its payment,no
+ORD4252,order,refund,rfnd_000302,fully refunded; the order-level classification is correct and is not the defect under test,no
+ORD4253,order,clean,,matches 1:1 with its payment,no
+ORD4254,order,clean,,matches 1:1 with its payment,no
+ORD4255,order,clean,,matches 1:1 with its payment,no
+ORD4256,order,clean,,matches 1:1 with its payment,no
+ORD4257,order,clean,,matches 1:1 with its payment,no
+ORD4258,order,clean,,matches 1:1 with its payment,no
+ORD4259,order,clean,,matches 1:1 with its payment,no
+ORD4260,order,clean,,matches 1:1 with its payment,no
+ORD4261,order,clean,,matches 1:1 with its payment,no
+ORD4262,order,clean,,matches 1:1 with its payment,no
+ORD4263,order,clean,,matches 1:1 with its payment,no
+ORD4264,order,clean,,matches 1:1 with its payment,no
+ORD4265,order,currency_mismatch,,ledger records this order in SGD while the gateway and bank are in INR; the amounts tie only because the unit is never checked,yes
+ORD4266,order,amount_transposition,,ledger amount 989900 is 899900 with two digits transposed; gateway and bank carry the original,yes
+ORD4267,order,clean,,matches 1:1 with its payment,no
+ORD4268,order,clean,,matches 1:1 with its payment,no
+ORD4269,order,clean,,matches 1:1 with its payment,no
+ORD4270,order,clean,,matches 1:1 with its payment,no
+ORD4271,order,clean,,matches 1:1 with its payment,no
+ORD4272,order,clean,,matches 1:1 with its payment,no
+ORD4273,order,clean,,matches 1:1 with its payment,no
+ORD4274,order,clean,,matches 1:1 with its payment,no
+ORD4275,order,clean,,matches 1:1 with its payment,no
+ORD4276,order,clean,,matches 1:1 with its payment,no
+ORD4277,order,clean,,matches 1:1 with its payment,no
+ORD4278,order,clean,,matches 1:1 with its payment,no
+ORD4279,order,clean,,matches 1:1 with its payment,no
+ORD4280,order,clean,,matches 1:1 with its payment,no
+ORD4281,order,clean,,matches 1:1 with its payment,no
+ORD4282,order,clean,,matches 1:1 with its payment,no
+ORD4283,order,clean,,matches 1:1 with its payment,no
+ORD4284,order,clean,,matches 1:1 with its payment,no
+ORD4285,order,clean,,matches 1:1 with its payment,no
+ORD4286,order,clean,,matches 1:1 with its payment,no
+ORD4287,order,clean,,matches 1:1 with its payment,no
+ORD4288,order,clean,,matches 1:1 with its payment,no
+ORD4289,order,clean,,matches 1:1 with its payment,no
+ORD4290,order,clean,,matches 1:1 with its payment,no
+ORD4291,order,clean,,matches 1:1 with its payment,no
+ORD4292,order,clean,,matches 1:1 with its payment,no
+ORD4293,order,clean,,matches 1:1 with its payment,no
+ORD4294,order,clean,,matches 1:1 with its payment,no
+ORD4295,order,clean,,matches 1:1 with its payment,no
+ORD4296,order,clean,,matches 1:1 with its payment,no
+ORD4297,order,clean,,matches 1:1 with its payment,no
+ORD4298,order,clean,,matches 1:1 with its payment,no
+ORD4299,order,clean,,matches 1:1 with its payment,no
+pay_000098,txn,dangling_settlement_ref,setl_9371,settlement_id resolves to no settlement in the report; the transaction claims to be paid out and nothing contradicts it,yes
+pay_000125,txn,dangling_settlement_ref,setl_9375,settlement_id resolves to no settlement in the report; the transaction claims to be paid out and nothing contradicts it,yes
+rfnd_000301,txn,unreversed_refund_fee,ORD4024,refund was charged a fee that was never reversed; the row is internally consistent so no identity check fires,yes
+rfnd_000302,txn,unreversed_refund_fee,ORD4252,refund was charged a fee that was never reversed; the row is internally consistent so no identity check fires,yes
+rfnd_000303,txn,unreversed_refund_fee,ORD4078,refund was charged a fee that was never reversed; the row is internally consistent so no identity check fires,yes
