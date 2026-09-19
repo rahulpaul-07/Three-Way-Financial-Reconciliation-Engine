@@ -2,13 +2,13 @@ entity_id,entity_type,expected_classification,expected_match_target,notes,outsid
 BNK000002,bank_row,messy_narration,setl_0001,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
 BNK000003,bank_row,messy_narration,setl_0002,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
 BNK000004,bank_row,messy_narration,setl_0003,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
-BNK000006,bank_row,balance_inconsistency,,"balance column overstates by 7500 paise against this row's own credit and debit; no line is missing, the statement is internally wrong",yes
-BNK000008,bank_row,messy_narration,setl_0007,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
+BNK000008,bank_row,balance_inconsistency,,"balance column overstates by 12000 paise against this row's own credit and debit; no line is missing, the statement is internally wrong",yes
 BNK000009,bank_row,messy_narration,setl_0008,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
 BNK000011,bank_row,messy_narration,setl_0010,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
 BNK000017,bank_row,messy_narration,setl_0016,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
 BNK000018,bank_row,messy_narration,setl_0017,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
-BNK000023,bank_row,balance_inconsistency,,"balance column overstates by 31000 paise against this row's own credit and debit; no line is missing, the statement is internally wrong",yes
+BNK000019,bank_row,balance_inconsistency,,"balance column overstates by 31000 paise against this row's own credit and debit; no line is missing, the statement is internally wrong",yes
+BNK000023,bank_row,messy_narration,setl_0022,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
 BNK000028,bank_row,messy_narration,setl_0027,UTR absent or mangled in narration; must be recovered from free text or inferred from amount + date,no
 BNK000031,bank_row,split_settlement,setl_0014,"settlement setl_0014 paid in two instalments; this line carries part of the total, so no single statement line ties to the settlement",yes
 BNK000032,bank_row,split_settlement,setl_0014,"settlement setl_0014 paid in two instalments; this line carries part of the total, so no single statement line ties to the settlement",yes
@@ -322,7 +322,9 @@ ORD4297,order,clean,,matches 1:1 with its payment,no
 ORD4298,order,clean,,matches 1:1 with its payment,no
 ORD4299,order,clean,,matches 1:1 with its payment,no
 pay_000098,txn,dangling_settlement_ref,setl_9371,settlement_id resolves to no settlement in the report; the transaction claims to be paid out and nothing contradicts it,yes
+pay_000114,txn,net_arithmetic_control,,"gross - fee - gst != net on this row; a txn-keyed break the engine does report, planted to prove the grader reads txn-level emissions",yes
 pay_000125,txn,dangling_settlement_ref,setl_9375,settlement_id resolves to no settlement in the report; the transaction claims to be paid out and nothing contradicts it,yes
+pay_000259,txn,net_arithmetic_control,,"gross - fee - gst != net on this row; a txn-keyed break the engine does report, planted to prove the grader reads txn-level emissions",yes
 rfnd_000301,txn,unreversed_refund_fee,ORD4024,refund was charged a fee that was never reversed; the row is internally consistent so no identity check fires,yes
 rfnd_000302,txn,unreversed_refund_fee,ORD4252,refund was charged a fee that was never reversed; the row is internally consistent so no identity check fires,yes
 rfnd_000303,txn,unreversed_refund_fee,ORD4078,refund was charged a fee that was never reversed; the row is internally consistent so no identity check fires,yes

@@ -45,6 +45,18 @@ same author. They are evidence of no false positives and no silently discarded
 records. They are not evidence of performance on a real merchant's books, where
 defect types this generator does not model would appear.
 
+Some of those types are now measured rather than left to the imagination.
+`src/adversarial_data.py` plants defect classes the engine has no rule for, and
+`python3 src/evaluate.py --data datasets/08-unseen --detection` scores whether
+it at least declines to call them clean. **Four are silent passes:** a duplicate
+bank credit and a foreign-currency order are both classified `clean`, and a
+dangling settlement reference and an unreversed refund fee are never examined at
+all. The duplicate credit is the sharpest — the same money counted twice
+reconciles without a flag. Two positive controls (one order-keyed, one
+txn-keyed) prove the grader reads emissions at both levels, so these are the
+engine's blind spots, not the harness's. All four are pinned in
+`tests/test_detection.py`.
+
 Reproduce:
 
 ```bash

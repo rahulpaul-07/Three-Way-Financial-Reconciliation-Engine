@@ -71,7 +71,7 @@ class TestAdversarialGenerator:
         for field in ("payout_reversal", "duplicate_bank_row",
                       "currency_mismatch", "amount_transposition",
                       "unreversed_refund_fee", "balance_inconsistency",
-                      "dangling_settlement_ref"):
+                      "dangling_settlement_ref", "net_arithmetic_control"):
             assert counts[field] == getattr(plan, field), field
 
     def test_no_settlement_carries_two_unseen_defects(self):
@@ -242,20 +242,68 @@ class TestDetectionGrader:
         assert summary["detection_rate"] == pytest.approx(
             summary["detected"] / summary["total"])
 
-    def test_known_silent_classes_stay_silent(self, batch):
+    # The detection state of EVERY declared class is pinned, not only the
+    # silent ones. A partial pin let `duplicate_bank_row` sit as an
+    # undocumented blind spot: it was silent, no test named it, so nothing
+    # flagged it. `SILENT` classes are the finding; `DETECTED` classes must
+    # stay caught -- a regression that flips one silently degrades the engine.
+    SILENT = {"currency_mismatch", "duplicate_bank_row",
+              "dangling_settlement_ref", "unreversed_refund_fee"}
+    DETECTED = {"amount_transposition", "net_arithmetic_control",
+                "balance_inconsistency", "payout_reversal", "split_settlement"}
+
+    def test_every_declared_class_has_a_pinned_state(self):
         """
-        Pins the finding. These three are silent passes as of this commit:
-        currency is never read, a dangling settlement reference is never
+        Guards the map itself. If a class is added to the generator without
+        deciding whether it is a blind spot or a caught defect, this fails --
+        so a new defect can never slip in unpinned the way duplicate_bank_row
+        did.
+        """
+        assert self.SILENT | self.DETECTED == UNSEEN_LABELS, (
+            "a declared class is missing from the state map; classify it as "
+            "SILENT (a blind spot) or DETECTED before merging")
+
+    def test_blind_spot_classes_stay_silent(self, batch):
+        """
+        Pins the four known blind spots: currency is never read, a duplicate
+        bank credit passes as clean, a dangling settlement reference is never
         checked, and a refund's own fee is never validated.
 
-        This test is expected to FAIL when any of those is fixed. That is the
-        point -- it is a record of a known defect, not an assertion that the
-        behaviour is correct. Delete the class from the list when you fix it.
+        Expected to FAIL when any is fixed -- a record of a known defect, not
+        an assertion it is correct. Move the class to DETECTED when you fix it.
         """
         _, summary = grade_detection(batch)
-        for cls in ("currency_mismatch", "dangling_settlement_ref",
-                    "unreversed_refund_fee"):
-            counts = summary["by_class"][cls]
-            assert counts.get("detected", 0) == 0, (
-                f"{cls} is now detected -- if that was deliberate, remove it "
-                f"from this test and update the README figure")
+        for cls in self.SILENT:
+            assert summary["by_class"][cls].get("detected", 0) == 0, (
+                f"{cls} is now detected -- if deliberate, move it to DETECTED "
+                f"and update the blind-spot list in README/ARCHITECTURE")
+
+    def test_caught_classes_stay_detected(self, batch):
+        """
+        The other side of the pin. These are caught today (mislabelled for the
+        non-controls, but flagged); a change that lets one slip to silent is a
+        regression, and the two controls slipping to silent means the grader
+        itself broke.
+        """
+        _, summary = grade_detection(batch)
+        for cls in self.DETECTED:
+            c = summary["by_class"][cls]
+            assert c.get("silent_clean", 0) == 0 and c.get("silent_absent", 0) == 0, (
+                f"{cls} now has silent records: {c}")
+
+    def test_txn_level_positive_control_is_detected(self, batch):
+        """
+        The control that isolates the txn-level findings. `net_arithmetic_control`
+        breaks gross - fee - gst == net, which the engine reports against the
+        TXN id. If the grader could not read txn-level emissions, this and the
+        two real txn blind spots would all read silent for the same reason --
+        so this passing is what proves `dangling_settlement_ref` and
+        `unreversed_refund_fee` are engine blind spots, not grader deafness.
+        """
+        outcomes, _ = grade_detection(batch)
+        ctrl = [o for o in outcomes if o.planted == "net_arithmetic_control"]
+        assert ctrl, "the txn-level control was not planted"
+        assert all(o.state == "detected" for o in ctrl), \
+            [(o.entity_id, o.state) for o in ctrl]
+        assert all(o.emitted == "net_arithmetic_error" for o in ctrl), \
+            [o.emitted for o in ctrl]

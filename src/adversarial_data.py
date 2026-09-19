@@ -87,6 +87,7 @@ UNSEEN_LABELS = frozenset({
     "currency_mismatch",
     "amount_transposition",
     "balance_inconsistency",
+    "net_arithmetic_control",
 })
 
 
@@ -95,10 +96,21 @@ class UnseenPlan:
     """
     How many of each unseen defect to plant.
 
-    `amount_transposition` is a deliberate positive control. The engine DOES
-    compare ledger amount against gateway gross (matcher.py, tier 1), so this
-    one should be detected. If a run reports every class as a silent pass
-    including this one, the harness is broken rather than the engine.
+    Two of these are deliberate positive controls, one per entity type, and
+    they exist to catch a broken GRADER rather than a broken engine:
+
+      * `amount_transposition` is order-keyed. The engine compares ledger
+        amount against gateway gross (matcher.py, tier 1), so it must be
+        detected against the ORDER id.
+      * `net_arithmetic_control` is txn-keyed. The engine checks
+        gross - fee - gst == net and reports the break against the TXN id
+        (matcher.py, tier 0), so it must be detected against the TXN id.
+
+    Without a txn-keyed control, a grader that simply cannot read txn-level
+    emissions would report every txn-keyed defect as silent, and the two real
+    txn-level blind spots (`dangling_settlement_ref`, `unreversed_refund_fee`)
+    could not be told apart from that instrument failure. If either control
+    shows up as a silent pass, the harness is broken, not the engine.
     """
     split_settlement: int = 3
     payout_reversal: int = 2
@@ -108,6 +120,7 @@ class UnseenPlan:
     currency_mismatch: int = 3
     amount_transposition: int = 3
     balance_inconsistency: int = 2
+    net_arithmetic_control: int = 2
 
 
 def zero_plan() -> DefectPlan:
@@ -211,6 +224,7 @@ class AdversarialGenerator(Generator):
         self._unreverse_refund_fees()
         self._mismatch_currency()
         self._transpose_amounts()
+        self._corrupt_txn_arithmetic()
 
         # Structural mutations are done; the statement is internally
         # consistent again before the one defect that deliberately is not.
@@ -471,6 +485,42 @@ class AdversarialGenerator(Generator):
             self._mark(l.order_id, "order", "amount_transposition", "",
                        f"ledger amount {swapped} is {original} with two digits "
                        f"transposed; gateway and bank carry the original")
+
+    # ---- 7b. txn-keyed positive control ----------------------------------
+
+    def _corrupt_txn_arithmetic(self) -> None:
+        """
+        Break one payment's own identity: gross - fee - gst != net.
+
+        This is the txn-side positive control. The engine's tier-0 arithmetic
+        check reports the break against the TXN id, so this record MUST come
+        back detected -- its whole job is to prove the grader can read a
+        txn-level emission at all, which is what makes the two genuine
+        txn-level blind spots trustworthy as findings rather than as a grader
+        that is simply deaf to transactions.
+
+        Only `net` is moved, and the settlement total and its bank credit are
+        moved with it, so nothing else stops tying: the ledger-vs-gross check
+        still passes and the settlement total still reconciles. The single
+        broken thing is the row's internal identity, keyed to the txn.
+        """
+        delta = 100  # one rupee, enough to exceed any rounding tolerance
+        for sid in self._take(self.unseen.net_arithmetic_control):
+            members = [t for t in self.gateway
+                       if t.settlement_id == sid and t.txn_type == "payment"]
+            row = self._bank_row_for(sid)
+            if not members or row is None or row.credit_paise is None:
+                continue
+            victim = self.rng.choice(members)
+
+            victim.net_amount_paise += delta          # identity now broken
+            self.settlements[sid]["total_paise"] += delta   # keeps total tying
+            row.credit_paise += delta                        # keeps bank tying
+
+            self._mark(victim.txn_id, "txn", "net_arithmetic_control", "",
+                       "gross - fee - gst != net on this row; a txn-keyed break "
+                       "the engine does report, planted to prove the grader "
+                       "reads txn-level emissions")
 
     # ---- 8. a running balance that does not tie --------------------------
 

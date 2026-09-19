@@ -440,6 +440,17 @@ Stated rather than discovered by a reader.
    investigation paths and, once, a different label. Both were defensible; the
    behaviour is not reproducible.
 6. **Synthetic data throughout.** No real merchant's books have been reconciled.
+7. **Four measured blind spots.** `src/adversarial_data.py` plants defect
+   classes the engine has no rule for and `evaluate.py --detection` scores
+   whether it at least refuses to call them clean. Four are silent passes:
+   a **duplicate bank credit** and a **currency mismatch** are both classified
+   `clean`; a **dangling settlement reference** and an **unreversed refund fee**
+   are never examined at all. The duplicate credit is the one that matters most
+   — the same money counted twice reconciles silently. These are held by
+   `tests/test_detection.py`, which pins each class as a blind spot until it is
+   fixed. Two positive controls (one order-keyed, one txn-keyed) prove the
+   grader can see emissions at both levels, so the silences are the engine's,
+   not the instrument's.
 
 ---
 
