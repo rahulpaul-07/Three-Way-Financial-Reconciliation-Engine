@@ -495,6 +495,16 @@ def grade_detection(datadir: Path) -> tuple[list[DetectionOutcome], dict]:
     silent = total - detected
     lo, hi = wilson_interval(detected, total) if total else (0.0, 0.0)
 
+    # The finding is a set of CLASSES the engine cannot see, not a rate. The
+    # record-level rate is an artefact of how many of each class the plan
+    # happens to plant -- doubling one class's count moves the rate without
+    # touching the engine -- so a blind spot is reported once, per class, and
+    # the rate is kept only as a coarse secondary figure with that caveat.
+    blind_spots = sorted(cls for cls, c in by_class.items()
+                         if c.get("detected", 0) == 0)
+    controls = ("amount_transposition", "net_arithmetic_control")
+    control_failures = [c for c in controls if c in blind_spots]
+
     summary = {
         "total": total,
         "detected": detected,
@@ -503,6 +513,8 @@ def grade_detection(datadir: Path) -> tuple[list[DetectionOutcome], dict]:
         "detection_ci": (lo, hi),
         "by_class": {k: dict(v) for k, v in by_class.items()},
         "labels": {k: dict(v) for k, v in labels.items()},
+        "blind_spot_classes": blind_spots,
+        "control_failures": control_failures,
     }
     return outcomes, summary
 
@@ -522,12 +534,36 @@ def print_detection_report(outcomes: list[DetectionOutcome],
     print("The question asked is only: did it refuse to call the record clean?")
     print()
 
+    # The result is the set of blind-spot CLASSES, stated first. Two of the
+    # planted classes are positive controls the engine is known to catch; if
+    # either shows up here, the grader is broken and no other line is
+    # trustworthy, so that is said before anything else.
+    controls = {"amount_transposition", "net_arithmetic_control"}
+    if summary["control_failures"]:
+        print("  !! CONTROL FAILED -- the grader missed a defect the engine")
+        print(f"     does catch: {', '.join(summary['control_failures'])}.")
+        print("     Every figure below is suspect until this is fixed.")
+        print()
+
+    blind = [c for c in summary["blind_spot_classes"] if c not in controls]
+    print(f"  BLIND SPOTS -- {len(blind)} defect classes the engine never flags:")
+    for cls in blind:
+        c = summary["by_class"][cls]
+        how = ("classified clean" if c.get("silent_clean")
+               else "never examined")
+        print(f"     {cls:<26} ({how})")
+    print()
+    print("  This class list is the finding. The record-level rate below is a")
+    print("  coarse secondary figure only: it moves with how many of each class")
+    print("  the plan plants, not with the engine, so it is not a benchmark.")
+    print()
+
     lo, hi = summary["detection_ci"]
     print(f"  planted          {summary['total']}")
     print(f"  detected         {summary['detected']}")
     print(f"  silent pass      {summary['silent']}")
     print(f"  detection rate   {summary['detection_rate']:6.1%}  "
-          f"[{lo:.1%}, {hi:.1%}] 95% Wilson")
+          f"[{lo:.1%}, {hi:.1%}] 95% Wilson  (mix-dependent; see above)")
     print()
 
     print(f"  {'planted class':<26}{'n':>4}{'det':>6}{'clean':>7}{'absent':>8}")
