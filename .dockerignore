@@ -1,0 +1,9 @@
+.git
+**/__pycache__
+**/*.pyc
+.eval
+data_alt
+web/node_modules
+web/dist
+*.log
+.env
