@@ -234,7 +234,7 @@ def print_report(metrics: dict[str, ClassMetrics], summary: dict) -> None:
 # Variance across independently generated batches
 # --------------------------------------------------------------------------
 
-def run_variance(n_seeds: int, orders: int, workdir: Path) -> None:
+def run_variance(n_seeds: int, orders: int, workdir: Path) -> list[dict]:
     """
     A single run proves nothing. Regenerate the batch under different seeds
     and report the spread: same defect proportions, different data.
@@ -244,7 +244,7 @@ def run_variance(n_seeds: int, orders: int, workdir: Path) -> None:
     print("=" * 74)
     print()
 
-    rates, accs = [], []
+    rates, accs, rows = [], [], []
     gen = Path(__file__).resolve().parent / "generate_data.py"
 
     for seed in range(1, n_seeds + 1):
@@ -256,6 +256,9 @@ def run_variance(n_seeds: int, orders: int, workdir: Path) -> None:
         _, summary = grade(out)
         rates.append(summary["resolution_rate"])
         accs.append(summary["accuracy"])
+        rows.append({"seed": seed, "entities": summary["entities"],
+                     "resolution_rate": summary["resolution_rate"],
+                     "accuracy": summary["accuracy"]})
         print(f"  seed {seed:>3}   resolved {summary['resolution_rate']:>6.1%}"
               f"   accuracy {summary['accuracy']:>6.1%}"
               f"   entities {summary['entities']:>4}")
@@ -276,13 +279,14 @@ def run_variance(n_seeds: int, orders: int, workdir: Path) -> None:
           f"range [{amin:.1%}, {amax:.1%}]")
     print("-" * 74)
     print()
+    return rows
 
 
 # --------------------------------------------------------------------------
 # Throughput
 # --------------------------------------------------------------------------
 
-def run_throughput(sizes: list[int], workdir: Path) -> None:
+def run_throughput(sizes: list[int], workdir: Path) -> list[dict]:
     """
     The track bar names throughput explicitly. Measured, not asserted.
     """
@@ -295,6 +299,7 @@ def run_throughput(sizes: list[int], workdir: Path) -> None:
     print("-" * 74)
 
     gen = Path(__file__).resolve().parent / "generate_data.py"
+    rows = []
 
     for n in sizes:
         out = workdir / f"_eval_scale_{n}"
@@ -312,8 +317,12 @@ def run_throughput(sizes: list[int], workdir: Path) -> None:
 
         print(f"  {n:>8}{len(resolutions):>10}{t_gen:>11.2f}s"
               f"{t_rec:>11.3f}s{len(resolutions) / t_rec:>12,.0f}")
+        rows.append({"orders": n, "entities": len(resolutions),
+                     "reconcile_seconds": t_rec,
+                     "entities_per_second": len(resolutions) / t_rec})
     print("-" * 74)
     print()
+    return rows
 
 
 def cohens_kappa(a: list[str], b: list[str]) -> float:
@@ -352,7 +361,7 @@ def cohens_kappa(a: list[str], b: list[str]) -> float:
 # --------------------------------------------------------------------------
 
 def run_stress(scales: list[float], orders: int, seeds: int,
-               workdir: Path, compound: bool = False) -> None:
+               workdir: Path, compound: bool = False) -> list[dict]:
     """
     Measure the engine as defect density rises.
 
@@ -374,6 +383,7 @@ def run_stress(scales: list[float], orders: int, seeds: int,
     print("-" * 74)
 
     gen = Path(__file__).resolve().parent / "generate_data.py"
+    table = []
 
     for scale in scales:
         rates, accs, excs, densities = [], [], [], []
@@ -395,7 +405,10 @@ def run_stress(scales: list[float], orders: int, seeds: int,
             accs.append(summary["accuracy"])
             excs.append(summary["entities"] - summary["resolved"])
 
-        mean = lambda xs: sum(xs) / len(xs)
+        mean = lambda xs: sum(xs) / len(xs)  # noqa: E731
+        table.append({"scale": scale, "defect_rate": mean(densities),
+                      "resolution_rate": mean(rates), "accuracy": mean(accs),
+                      "exceptions": mean(excs), "worst_accuracy": min(accs)})
         print(f"  {scale:>6.1f}{mean(densities):>13.0%}{mean(rates):>12.1%}"
               f"{mean(accs):>12.1%}{mean(excs):>13.0f}{min(accs):>12.1%}")
 
@@ -409,6 +422,7 @@ def run_stress(scales: list[float], orders: int, seeds: int,
     print("  --compound to allow several defects on one record, which is the")
     print("  case that does degrade the result.")
     print()
+    return table
 
 
 # --------------------------------------------------------------------------
@@ -476,7 +490,10 @@ def grade_detection(datadir: Path) -> tuple[list[DetectionOutcome], dict]:
         flagged = [s for s in signals if s != "clean"]
 
         if flagged:
-            state, got = "detected", flagged[0]
+            # Prefer the planted label if the engine emitted it anywhere, so a
+            # record reported under several ids is credited with its best name.
+            state = "detected"
+            got = cls if cls in flagged else flagged[0]
         elif signals:
             state, got = "silent_clean", "clean"
         else:
@@ -502,6 +519,11 @@ def grade_detection(datadir: Path) -> tuple[list[DetectionOutcome], dict]:
     # the rate is kept only as a coarse secondary figure with that caveat.
     blind_spots = sorted(cls for cls, c in by_class.items()
                          if c.get("detected", 0) == 0)
+    # Detected AND named with the planted label. Only meaningful for classes
+    # the engine has since learned to name; the two positive controls are
+    # caught under their existing labels by design.
+    named = sum(1 for o in outcomes
+                if o.state == "detected" and o.emitted == o.planted)
     controls = ("amount_transposition", "net_arithmetic_control")
     control_failures = [c for c in controls if c in blind_spots]
 
@@ -513,6 +535,7 @@ def grade_detection(datadir: Path) -> tuple[list[DetectionOutcome], dict]:
         "detection_ci": (lo, hi),
         "by_class": {k: dict(v) for k, v in by_class.items()},
         "labels": {k: dict(v) for k, v in labels.items()},
+        "named": named,
         "blind_spot_classes": blind_spots,
         "control_failures": control_failures,
     }
@@ -529,9 +552,10 @@ def print_detection_report(outcomes: list[DetectionOutcome],
     print("=" * 74)
     print("DETECTION ON UNSEEN DEFECT CLASSES")
     print("=" * 74)
-    print("The engine has no label for any class below. Classification")
-    print("accuracy is therefore structurally zero and is not reported.")
-    print("The question asked is only: did it refuse to call the record clean?")
+    print("These classes were planted from outside the engine's original")
+    print("taxonomy. Seven have since been given rules and names of their own")
+    print("(see NOTES.md); the question asked first is still the narrower one:")
+    print("did the engine refuse to call the record clean?")
     print()
 
     # The result is the set of blind-spot CLASSES, stated first. Two of the
@@ -561,6 +585,7 @@ def print_detection_report(outcomes: list[DetectionOutcome],
     lo, hi = summary["detection_ci"]
     print(f"  planted          {summary['total']}")
     print(f"  detected         {summary['detected']}")
+    print(f"  named correctly  {summary['named']}")
     print(f"  silent pass      {summary['silent']}")
     print(f"  detection rate   {summary['detection_rate']:6.1%}  "
           f"[{lo:.1%}, {hi:.1%}] 95% Wilson  (mix-dependent; see above)")
@@ -576,9 +601,9 @@ def print_detection_report(outcomes: list[DetectionOutcome],
     print()
 
     if summary["labels"]:
-        print("  Labels emitted where a defect WAS detected. The engine cannot")
-        print("  name these classes, so every label here is by definition")
-        print("  wrong -- what matters is whether it misdirects an analyst.")
+        print("  Labels emitted where a defect WAS detected. Where the label")
+        print("  differs from the planted class, what matters is whether it")
+        print("  misdirects an analyst.")
         print()
         for cls in sorted(summary["labels"]):
             got = ", ".join(f"{k} x{v}" for k, v in

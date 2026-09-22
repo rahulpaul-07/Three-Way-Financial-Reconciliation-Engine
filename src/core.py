@@ -43,6 +43,11 @@ def paise_to_rupees_str(paise: int) -> str:
 
 GST_RATE = Decimal("0.18")
 
+# The one currency the gateway settles in and the bank account is held in. An
+# order recorded in any other unit cannot be compared against either, however
+# well its number happens to tie.
+SETTLEMENT_CURRENCY = "INR"
+
 FEE_RULES: dict[str, dict] = {
     "card":       {"kind": "percent", "rate": Decimal("0.0200")},
     "wallet":     {"kind": "percent", "rate": Decimal("0.0180")},
