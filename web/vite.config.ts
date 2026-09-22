@@ -17,9 +17,13 @@ export default defineConfig({
     chunkSizeWarningLimit: 700,
     rollupOptions: {
       output: {
-        manualChunks: {
-          charts: ["recharts"],
-          motion: ["framer-motion"],
+        // Rollup 4 (Vite 8) takes manualChunks as a function. Charts and the
+        // animation library are split out because neither is needed until the
+        // reader scrolls past the opening.
+        manualChunks(id: string) {
+          if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-")) return "charts";
+          if (id.includes("node_modules/framer-motion") || id.includes("node_modules/motion-")) return "motion";
+          return undefined;
         },
       },
     },
