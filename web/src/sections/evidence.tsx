@@ -91,7 +91,7 @@ function Degradation({ b }: { b: Benchmarks }) {
             {grid}
             <XAxis dataKey="scale" tick={axis} tickLine={false}
               label={{ value: "planted defect rate", position: "insideBottomRight", offset: -2, fontSize: 11, fill: "rgb(var(--graphite))" }} />
-            <YAxis unit="%" tick={axis} tickLine={false} axisLine={false} width={48} domain={[70, 100]} />
+            <YAxis unit="%" tick={axis} tickLine={false} axisLine={false} width={48} domain={[70, 100]} ticks={[70, 80, 90, 100]} />
             <Tooltip {...tipStyle} formatter={(v: number, name: string, item: { payload?: Record<string, number> }) => {
               const d = name.includes("same") ? item.payload?.compoundDensity : item.payload?.separateDensity;
               return [`${v}% correct, ${d}% of records defective`, name];
@@ -116,9 +116,9 @@ function Throughput({ b }: { b: Benchmarks }) {
   const lo = Math.min(...rates), hi = Math.max(...rates);
   return (
     <Panel title="Speed at scale"
-      note={<>Thousands of entities reconciled per second, by batch size. Across a {Math.round(last.entities / b.throughput[0].entities)}× range of sizes the rate stays between{" "}
-        {Math.round(lo / 1000)}k and {Math.round(hi / 1000)}k per second, so cost grows linearly; the largest batch takes {(last.reconcile_seconds * 1000).toFixed(0)} ms.
-        These are single timings on the build machine, not a controlled benchmark, and vary by a few tens of percent between runs.</>}>
+      note={<>Thousands of entities reconciled per second, by batch size: between {int(lo / 1000)}k and {int(hi / 1000)}k here, so cost grows
+        roughly linearly with the batch. The largest, {int(last.entities)} entities, took {(last.reconcile_seconds * 1000).toFixed(0)} ms.
+        These are single timings on the build machine and vary from run to run; they are not a controlled benchmark.</>}>
       <div className="h-56">
         <ResponsiveContainer>
           <BarChart data={data} margin={{ top: 8, right: 12, left: 0, bottom: 4 }}>
