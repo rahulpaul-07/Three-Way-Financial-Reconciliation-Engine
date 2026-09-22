@@ -13,15 +13,42 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
-      # Origins allowed to call the API from a browser. The GitHub Pages site
-      # is the one that needs it.
       # Render terminates TLS and appends the caller's address to
       # X-Forwarded-For; per-client limits key on that appended entry.
       - key: RECON_TRUST_PROXY
         value: "1"
+      # Origins allowed to call the API from a browser. The GitHub Pages site
+      # is the one that needs it.
       - key: RECON_CORS_ORIGINS
         value: https://rahulpaul-07.github.io
       # Optional. With no key the model-backed endpoints say so plainly and
       # everything else works. Set it in the dashboard, never in this file.
       - key: ANTHROPIC_API_KEY
         sync: false
+
+# --------------------------------------------------------------------------
+# If the service runs on Render's Python runtime instead of Docker
+# --------------------------------------------------------------------------
+# Render fixes a service's runtime when it is created and will not switch an
+# existing one, and re-creating the service changes its URL -- which matters
+# when that URL is already on a job application. The live service is therefore
+# a Python service, configured in Render's dashboard rather than by this file.
+# Recorded here so the configuration is not lost if it is ever rebuilt:
+#
+#   Build command:
+#     pip install -r requirements-web.txt \
+#       && python scripts/build_site_data.py --out web/public/data \
+#       && cd web && npm ci && npm run build
+#
+#   Start command:
+#     python -m uvicorn app:app --host 0.0.0.0 --port $PORT --app-dir src
+#
+#   Environment: RECON_WEB_DIST=/opt/render/project/src/web/dist,
+#                RECON_TRUST_PROXY=1,
+#                RECON_CORS_ORIGINS=https://rahulpaul-07.github.io
+#
+# The order in the build command matters. `build_site_data.py` writes into
+# web/public/data, and Vite copies web/public into dist, so the data build has
+# to finish before the frontend build starts. With the two reversed the site
+# deploys looking fine and the agent traces and every chart are silently
+# empty -- which is exactly what happened the first time.

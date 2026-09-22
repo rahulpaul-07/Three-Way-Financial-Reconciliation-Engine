@@ -247,7 +247,7 @@ reason.</div>
 <div class="stats">
   <div class="stat"><div class="n">90.8%</div><div class="l">resolved</div></div>
   <div class="stat"><div class="n">100%</div><div class="l">classification accuracy</div></div>
-  <div class="stat"><div class="n">111</div><div class="l">tests, Python 3.10&ndash;3.13</div></div>
+  <div class="stat"><div class="n">168</div><div class="l">tests, Python 3.10&ndash;3.13</div></div>
   <div class="stat"><div class="n">7</div><div class="l">providers, scoped failover</div></div>
 </div>
 <div class="statnote">Measured on the reference batch against a ground-truth
@@ -503,7 +503,10 @@ def _spa_index() -> Path | None:
     return idx if idx.is_file() else None
 
 
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+# HEAD as well as GET: an uptime monitor defaults to HEAD, and a route that
+# declares only GET answers it with 405, which most monitors read as down.
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse,
+               include_in_schema=False)
 def index():
     idx = _spa_index()
     return FileResponse(idx) if idx else HTMLResponse(PAGE)
@@ -515,7 +518,7 @@ def classic() -> str:
     return PAGE
 
 
-@app.get("/health")
+@app.api_route("/health", methods=["GET", "HEAD"])
 def health() -> dict:
     return {"status": "ok", "model_required": False}
 

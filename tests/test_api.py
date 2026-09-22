@@ -149,6 +149,15 @@ class TestApi:
             "Access-Control-Request-Method": "POST"})
         assert "access-control-allow-origin" not in bad.headers
 
+    def test_head_works_on_the_routes_a_monitor_probes(self, client):
+        """
+        An uptime monitor sends HEAD by default. A route declaring only GET
+        answers 405, which most monitors report as an outage -- Render's own
+        prober was getting exactly that on the root.
+        """
+        for path in ("/", "/health"):
+            assert client.head(path).status_code == 200, path
+
     def test_unknown_api_path_is_json_404(self, client):
         r = client.get("/api/v1/nothing-here")
         assert r.status_code == 404
