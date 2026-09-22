@@ -10,7 +10,9 @@ name: pages
 on:
   push:
     branches: [main]
-    paths: ["web/**", ".github/workflows/pages.yml"]
+    # The site's figures come from the engine, so an engine or dataset change
+    # must republish it, not only a change to the dashboard code.
+    paths: ["web/**", "src/**", "datasets/**", "scripts/**", ".github/workflows/pages.yml"]
   workflow_dispatch:
 
 permissions:
@@ -27,6 +29,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Regenerate the site data from the current engine
+        # Committed snapshots can lag the code; the published figures must not.
+        run: |
+          python -m pip install pytest
+          python scripts/build_site_data.py --out web/public/data
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
