@@ -24,13 +24,13 @@ export default function App() {
       <a href="#workbench" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-ink focus:px-3 focus:py-2 focus:text-paper">
         Skip to the workbench
       </a>
-      <NavBar engine={engine.state} />
+      <NavBar engine={engine} />
       <main>
         <Hero reference={reference.data} meta={meta.data} />
         <Workbench engine={engine} meta={meta.data} run={current} onRun={onRun} />
         <Evidence meta={meta.data} />
         <AgentSection engine={engine} />
-        <HowItWorks />
+        <HowItWorks run={current} />
       </main>
       <Footer meta={meta.data} />
     </>

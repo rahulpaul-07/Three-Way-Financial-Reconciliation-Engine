@@ -15,6 +15,19 @@
   <body>
     <div id="root"></div>
     <noscript>This page needs JavaScript. The static report is at <a href="report.html">report.html</a>.</noscript>
+    <script>
+      // Wake the engine before the bundle has even parsed. A free-tier
+      // instance sleeps after 15 minutes idle, and this request is what
+      // starts it; the app awaits this promise instead of asking again.
+      (function () {
+        var base = "%VITE_API_BASE%";
+        if (!base || base.charAt(0) === "%") return;
+        try {
+          window.__wake = fetch(base + "/api/v1/health", { mode: "cors", cache: "no-store" });
+          window.__wake.catch(function () {});
+        } catch (e) { /* the app polls anyway */ }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

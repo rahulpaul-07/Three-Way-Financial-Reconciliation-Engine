@@ -37,8 +37,9 @@ function pickExample(run: Run | null) {
 export function Hero({ reference, meta }: { reference: Run | null; meta: Meta | null }) {
   const example = useMemo(() => pickExample(reference), [reference]);
   return (
-    <section id="top" className="border-b border-rule">
-      <div className="mx-auto grid max-w-page gap-12 px-5 pb-16 pt-12 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-14 lg:pb-24 lg:pt-20">
+    <section id="top" className="relative overflow-hidden border-b border-rule">
+      <LedgerBackdrop />
+      <div className="relative mx-auto grid max-w-page gap-12 px-5 pb-16 pt-12 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-14 lg:pb-24 lg:pt-20">
         <div className="max-w-xl">
           <h1 className="text-display font-medium">Three systems record every sale. They never agree.</h1>
           <p className="mt-6 max-w-prose text-lg leading-relaxed text-graphite">
@@ -61,6 +62,20 @@ export function Hero({ reference, meta }: { reference: Run | null; meta: Meta | 
         </div>
       </div>
     </section>
+  );
+}
+
+/** Faint ruled paper behind the opening, fading out before the text starts. */
+function LedgerBackdrop() {
+  return (
+    <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="ruled absolute inset-0 opacity-[0.55]"
+        style={{ maskImage: "linear-gradient(to bottom, rgb(0 0 0 / 0.5), transparent 72%)",
+                 WebkitMaskImage: "linear-gradient(to bottom, rgb(0 0 0 / 0.5), transparent 72%)" }} />
+      <div className="absolute inset-y-0 left-1/2 hidden w-px bg-rule/60 lg:block"
+        style={{ maskImage: "linear-gradient(to bottom, rgb(0 0 0 / 0.6), transparent 80%)",
+                 WebkitMaskImage: "linear-gradient(to bottom, rgb(0 0 0 / 0.6), transparent 80%)" }} />
+    </div>
   );
 }
 
