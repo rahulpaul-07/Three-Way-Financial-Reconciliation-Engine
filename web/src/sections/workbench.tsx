@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { live, snapshot } from "@/lib/api";
 import type { Meta, Run } from "@/lib/types";
 import { cn, int, pct } from "@/lib/utils";
-import type { EngineState } from "@/hooks/use-engine";
+import type { Engine } from "@/hooks/use-engine";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/panel";
@@ -13,22 +13,30 @@ import { blob } from "./links";
 type Mode = "recorded" | "generate" | "upload";
 
 export function Workbench({ engine, meta, run, onRun }: {
-  engine: { state: EngineState }; meta: Meta | null; run: Run | null; onRun: (r: Run) => void;
+  engine: Engine; meta: Meta | null; run: Run | null; onRun: (r: Run) => void;
 }) {
   const [mode, setMode] = useState<Mode>("recorded");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [queued, setQueued] = useState(false);
   const isLive = engine.state === "live";
+  const starting = engine.state === "checking" || engine.state === "waking";
 
-  async function go(label: string, job: () => Promise<Run>) {
+  async function go(label: string, job: () => Promise<Run>, needsEngine = false) {
     setBusy(label); setError(null);
     try {
+      // A sleeping instance should not mean a dead button: take the request
+      // now, wait for the engine to answer, then run it.
+      if (needsEngine && !isLive) {
+        setQueued(true);
+        await engine.whenLive();
+      }
       onRun(await job());
       document.getElementById("run")?.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setBusy(null);
+      setBusy(null); setQueued(false);
     }
   }
 
@@ -57,10 +65,16 @@ export function Workbench({ engine, meta, run, onRun }: {
             <DatasetList meta={meta} current={run?.source} busy={busy}
               onPick={(name) => go(name, () => (isLive ? live.dataset(name).catch(() => snapshot.dataset(name)) : snapshot.dataset(name)))} />
           )}
-          {mode === "generate" && <Generate disabled={!isLive} busy={busy} engine={engine.state}
-            onGenerate={(p) => go("generate", () => live.sample(p))} />}
-          {mode === "upload" && <UploadForm disabled={!isLive} busy={busy} engine={engine.state}
-            onUpload={(files) => go("upload", () => live.reconcile(files))} />}
+          {mode === "generate" && <Generate disabled={engine.state === "offline"} busy={busy} engine={engine}
+            onGenerate={(p) => go("generate", () => live.sample(p), true)} />}
+          {mode === "upload" && <UploadForm disabled={engine.state === "offline"} busy={busy} engine={engine}
+            onUpload={(files) => go("upload", () => live.reconcile(files), true)} />}
+          {queued && starting && (
+            <p aria-live="polite" className="mt-4 max-w-prose rounded border border-pencil/40 bg-pencil/[0.07] px-4 py-3 text-sm text-pencil">
+              Held until the engine answers. It sleeps when nobody has used it for a quarter of an hour and takes
+              30 to 60 seconds to start; this runs by itself as soon as it does.
+            </p>
+          )}
           {error && (
             <p role="alert" className="mt-4 max-w-prose rounded border border-redink/40 bg-redink/[0.06] px-4 py-3 text-sm text-redink">
               {error}
@@ -117,20 +131,29 @@ function DatasetList({ meta, current, busy, onPick }: {
   );
 }
 
-function OfflineNote({ engine }: { engine: EngineState }) {
-  if (engine === "live") return null;
+function OfflineNote({ engine }: { engine: Engine }) {
+  if (engine.state === "live") return null;
+  const seconds = Math.round(engine.waitedMs / 1000);
+  if (engine.state === "offline") {
+    return (
+      <p className="mt-3 max-w-prose text-sm text-pencil">
+        The engine is not answering, so the recorded batches above are all this page can show.{" "}
+        <button onClick={engine.retry} className="underline underline-offset-2">Try again</button>, or run it
+        locally: <code className="font-mono text-xs">pip install -r requirements-web.txt</code>, then uvicorn.
+      </p>
+    );
+  }
   return (
-    <p className="mt-3 text-sm text-pencil">
-      {engine === "waking"
-        ? "The live engine is waking up (free tier, about 30 seconds). This will unlock on its own."
-        : engine === "checking" ? "Checking for the live engine."
-          : "The live engine is unreachable, so this needs a local run: pip install -r requirements-web.txt, then uvicorn."}
+    <p className="mt-3 max-w-prose text-sm text-graphite">
+      {engine.state === "waking"
+        ? `Starting the engine${seconds > 2 ? ` (${seconds}s)` : ""}. Press anyway: the request waits and runs on its own.`
+        : "Checking for the engine. Press anyway; the request will wait."}
     </p>
   );
 }
 
 function Generate({ disabled, busy, engine, onGenerate }: {
-  disabled: boolean; busy: string | null; engine: EngineState;
+  disabled: boolean; busy: string | null; engine: Engine;
   onGenerate: (p: { seed: number; orders: number; defect_scale: number; compound: boolean }) => void;
 }) {
   const [seed, setSeed] = useState(42);
@@ -167,7 +190,8 @@ function Generate({ disabled, busy, engine, onGenerate }: {
       </div>
       <Button className="mt-6" disabled={disabled || !!busy}
         onClick={() => onGenerate({ seed, orders, defect_scale: scale, compound })}>
-        {busy === "generate" && <Loader2 size={16} className="animate-spin" />} Generate and reconcile
+        {busy === "generate" && <Loader2 size={16} className="animate-spin" />}
+        {busy === "generate" && engine.state !== "live" ? "Waiting for the engine" : "Generate and reconcile"}
       </Button>
       <OfflineNote engine={engine} />
     </div>
@@ -193,7 +217,7 @@ const FILES = [
 ];
 
 function UploadForm({ disabled, busy, engine, onUpload }: {
-  disabled: boolean; busy: string | null; engine: EngineState; onUpload: (f: Record<string, File>) => void;
+  disabled: boolean; busy: string | null; engine: Engine; onUpload: (f: Record<string, File>) => void;
 }) {
   const [files, setFiles] = useState<Record<string, File>>({});
   const formRef = useRef<HTMLDivElement>(null);
@@ -230,7 +254,8 @@ function UploadForm({ disabled, busy, engine, onUpload }: {
         ))}
       </div>
       <Button className="mt-6" disabled={disabled || !ready || !!busy} onClick={() => onUpload(files)}>
-        {busy === "upload" && <Loader2 size={16} className="animate-spin" />} Reconcile these files
+        {busy === "upload" && <Loader2 size={16} className="animate-spin" />}
+        {busy === "upload" && engine.state !== "live" ? "Waiting for the engine" : "Reconcile these files"}
       </Button>
       {!ready && <p className="mt-2 text-xs text-graphite">Choose the ledger, gateway and bank files to continue.</p>}
       <OfflineNote engine={engine} />

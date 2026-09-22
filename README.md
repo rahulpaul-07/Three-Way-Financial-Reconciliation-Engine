@@ -13,11 +13,17 @@ how every record was settled, a searchable table of every exception with its
 path traced across all four sources, the evidence charts, and the agent's
 recorded investigations. Pick a bundled batch, generate one, or upload your own
 three CSVs. The page reconciles on the live engine when it is awake and falls
-back to recorded runs when it is not, and says which.
+back to recorded runs when it is not, and says which. It starts waking the
+engine before its own JavaScript has parsed, and a run asked for while the
+engine is still starting is held and sent the moment it answers, so nothing
+has to be clicked twice.
 
 **[Live app](https://recon-engine-yjim.onrender.com)** — the same dashboard served
-by the engine itself, plus the JSON API (`/api/docs`). Hosted on a free tier, so
-the first load can take about 30 seconds. Reconciliation needs no API key; the
+by the engine itself, plus the JSON API (`/api/docs`). Hosted on a free tier,
+which stops the instance after 15 minutes idle and takes 30 to 60 seconds to
+start it again; `.github/workflows/keepalive.yml` pings it every 10 minutes to
+avoid that, at the cost of most of the free tier's monthly instance-hours, and
+can be deleted if those are worth more than the wait. Reconciliation needs no API key; the
 agent and Q&A panels use one, and a visitor can supply their own for a single
 request.
 

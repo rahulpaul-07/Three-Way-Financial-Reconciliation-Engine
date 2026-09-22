@@ -25,6 +25,12 @@ afterwards. Entries are in the order they happened.
 - **2026-09-05** — CI went red on four interpreters over a package I had never heard of.
 - **2026-09-05** — A regression test that passed with its own fix deleted.
 - **2026-09-05** — The loader rejected the one file a merchant is most likely to upload.
+- **2026-09-22** — The cold start was a design problem, not a hosting one.
+- **2026-09-22** — Closed the four blind spots, and lost a measurement doing it.
+- **2026-09-22** — Two unseen classes were caught under the wrong name.
+- **2026-09-22** — The page promised a bypass the server did not honour.
+- **2026-09-22** — Two limits that did not limit.
+- **2026-09-22** — Two README figures had drifted from the code.
 
 The entries worth reading first, if reading only three:
 
@@ -553,6 +559,26 @@ Worth noting what let this survive so long: every file the engine had ever read
 was written by my own generator, which writes plain UTF-8. Seven sample datasets
 and a hundred-odd tests all agreed with each other because they all came from
 the same source. The first genuinely foreign input broke it immediately.
+
+### 2026-09-22 - The cold start was a design problem, not a hosting one.
+
+A free-tier instance stops after 15 minutes idle, so most first visitors met a
+dead "Generate" button and a spinner for half a minute. Three changes, none of
+which required paying for hosting:
+
+- The wake request is fired from an inline script in `index.html`, before the
+  bundle parses, and the app awaits that promise instead of starting its own.
+  It buys a second or two of the wait for free.
+- The app polls for up to 90 seconds instead of asking twice, and shows the
+  seconds elapsed, because an unexplained wait reads as a broken page.
+- A run asked for while the engine is starting is queued rather than refused,
+  and sent when it answers. The button says what is happening.
+
+Only then the boring fix: a scheduled ping every 10 minutes keeps the instance
+up. That is the real remedy, and it is in a workflow that can be deleted,
+because it spends around 730 of the free tier's 750 monthly instance-hours.
+The other three still matter: the ping can fail, and the page has to behave
+when it does.
 
 ### 2026-09-22 - Closed the four blind spots, and lost a measurement doing it.
 

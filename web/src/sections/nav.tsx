@@ -1,17 +1,22 @@
+import { motion, useScroll, useSpring } from "framer-motion";
 import { Github } from "lucide-react";
-import type { EngineState } from "@/hooks/use-engine";
+import type { Engine, EngineState } from "@/hooks/use-engine";
 import { cn } from "@/lib/utils";
 import { REPO } from "./links";
 
 const STATUS: Record<EngineState, { text: string; dot: string; title: string }> = {
   checking: { text: "Checking engine", dot: "bg-graphite animate-pulse", title: "Looking for the live engine" },
   live: { text: "Engine live", dot: "bg-tick", title: "Runs, uploads and generated batches use the live engine" },
-  waking: { text: "Engine waking", dot: "bg-pencil animate-pulse", title: "The free-tier instance is starting; this takes about 30 seconds" },
+  waking: { text: "Engine starting", dot: "bg-pencil animate-pulse", title: "The free-tier instance sleeps when idle and takes 30 to 60 seconds to start. Recorded runs work meanwhile." },
   offline: { text: "Recorded data", dot: "bg-graphite", title: "The live engine is unreachable, so the page shows recorded runs" },
 };
 
-export function NavBar({ engine }: { engine: EngineState }) {
-  const s = STATUS[engine];
+export function NavBar({ engine }: { engine: Engine }) {
+  // How far down the ledger you are, drawn as a rule under the header.
+  const { scrollYProgress } = useScroll();
+  const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 30, mass: 0.3 });
+  const s = STATUS[engine.state];
+  const seconds = Math.round(engine.waitedMs / 1000);
   return (
     <header className="sticky top-0 z-40 border-b border-rule/80 bg-paper/90 backdrop-blur"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
@@ -30,14 +35,23 @@ export function NavBar({ engine }: { engine: EngineState }) {
           <a className="hover:text-ink" href="#agent">Agent</a>
           <a className="hover:text-ink" href="#how">How it works</a>
         </div>
-        <span title={s.title} className="ml-auto flex items-center gap-2 text-xs text-graphite md:ml-0">
+        <span title={s.title} aria-live="polite"
+          className="ml-auto flex items-center gap-2 text-xs text-graphite md:ml-0">
           <span className={cn("h-2 w-2 rounded-full", s.dot)} aria-hidden />
           {s.text}
+          {engine.state === "waking" && seconds > 2 && <span className="num">{seconds}s</span>}
+          {engine.state === "offline" && (
+            <button onClick={engine.retry} className="underline underline-offset-2 hover:text-ink">
+              Try again
+            </button>
+          )}
         </span>
         <a href={REPO} className="text-graphite hover:text-ink" aria-label="Source on GitHub">
           <Github size={18} />
         </a>
       </nav>
+      <motion.div aria-hidden style={{ scaleX: progress }}
+        className="h-px origin-left bg-tick" />
     </header>
   );
 }
