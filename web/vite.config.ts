@@ -1,0 +1,27 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import { fileURLToPath } from "node:url";
+
+// VITE_BASE is set by the Pages workflow, because the site is served from
+// /Three-Way-Financial-Reconciliation-Engine/ there and from / on Render.
+export default defineConfig({
+  base: process.env.VITE_BASE ?? "/",
+  plugins: [react()],
+  resolve: { alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) } },
+  server: {
+    // `npm run dev` proxies the API to a local uvicorn on :8000.
+    proxy: { "/api": "http://127.0.0.1:8000" },
+  },
+  build: {
+    sourcemap: false,
+    chunkSizeWarningLimit: 700,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          charts: ["recharts"],
+          motion: ["framer-motion"],
+        },
+      },
+    },
+  },
+});

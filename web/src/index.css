@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Ledger paper. Bookkeepers wrote on green-ruled paper, ticked reconciled
+   items in blue pencil and wrote breaks in red ink; the palette is that, and
+   every colour carries that meaning wherever it appears. */
+:root {
+  --paper: 231 237 230;     /* #E7EDE6 ruled ledger paper            */
+  --sheet: 243 246 241;     /* #F3F6F1 a lighter leaf for panels     */
+  --rule: 184 201 190;      /* #B8C9BE the green rule lines          */
+  --ink: 20 35 59;          /* #14233B navy writing ink              */
+  --graphite: 84 96 108;    /* #54606C secondary text, pencil grey   */
+  --tick: 36 87 166;        /* #2457A6 blue audit pencil: matched    */
+  --redink: 176 38 30;      /* #B0261E red ink: a genuine break      */
+  --pencil: 166 108 20;     /* #A66C14 amber: needs a person to look */
+  --settled: 58 110 84;     /* #3A6E54 expected, explained movement  */
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: 14 22 36;       /* #0E1624 night ledger     */
+    --sheet: 21 31 48;       /* #151F30                  */
+    --rule: 44 62 84;        /* #2C3E54                  */
+    --ink: 226 232 224;      /* #E2E8E0                  */
+    --graphite: 150 164 176; /* #96A4B0                  */
+    --tick: 122 166 238;     /* #7AA6EE                  */
+    --redink: 240 110 98;    /* #F06E62                  */
+    --pencil: 226 170 84;    /* #E2AA54                  */
+    --settled: 116 184 146;  /* #74B892                  */
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  html { scroll-behavior: smooth; scroll-padding-top: 4.5rem; }
+  body {
+    @apply bg-paper text-ink font-sans antialiased;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  h1, h2, h3 { @apply font-serif text-ink; font-feature-settings: "lnum" 1, "kern" 1; }
+  ::selection { background: rgb(var(--tick) / 0.22); }
+  :focus-visible { outline: 2px solid rgb(var(--tick)); outline-offset: 2px; border-radius: 3px; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+  }
+}
+
+@layer components {
+  /* Faint horizontal rules, the way a ledger page is printed. */
+  .ruled {
+    background-image: repeating-linear-gradient(
+      to bottom, transparent 0, transparent 31px, rgb(var(--rule) / 0.55) 31px, rgb(var(--rule) / 0.55) 32px);
+  }
+  /* The accountant's totals line: a single rule above, a double rule below. */
+  .totals { border-top: 1px solid rgb(var(--ink) / 0.8); border-bottom: 3px double rgb(var(--ink) / 0.8); }
+  .num { font-variant-numeric: tabular-nums lining-nums; }
+  .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}

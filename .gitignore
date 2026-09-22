@@ -9,6 +9,8 @@ venv/
 data_alt/
 *.log
 report.html
+# The recorded report of the reference run, shipped with the dashboard.
+!web/public/report.html
 qa_answers.json
 
 agent_traces.json
@@ -17,3 +19,8 @@ agent_traces.json
 data_amb/
 
 *.patch
+
+# Web dashboard
+web/node_modules/
+web/dist/
+*.tsbuildinfo
