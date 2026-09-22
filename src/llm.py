@@ -109,18 +109,21 @@ class AnthropicProvider(Provider):
     name = "anthropic"
     models = ["claude-sonnet-4-6", "claude-haiku-4-5-20251001"]
 
-    def __init__(self, model: str | None = None):
+    def __init__(self, model: str | None = None, api_key: str | None = None):
         override = model or os.environ.get("RECON_ANTHROPIC_MODEL")
         self.candidates = [override] if override else list(self.models)
         self.model = self.candidates[0]
         self.available = False
         self._client = None
-        if not os.environ.get("ANTHROPIC_API_KEY"):
+        # An explicit key (a visitor's, for one request) is passed to the
+        # client directly and never placed in the environment.
+        key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not key:
             self.reason = "ANTHROPIC_API_KEY not set"
             return
         try:
             import anthropic
-            self._client = anthropic.Anthropic()
+            self._client = anthropic.Anthropic(api_key=key)
             self.available = True
             self.reason = ""
         except ImportError:

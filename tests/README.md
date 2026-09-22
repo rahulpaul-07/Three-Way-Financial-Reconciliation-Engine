@@ -8,7 +8,7 @@ python3 -m pytest tests/ -q
 httpx2 is required by Starlette's TestClient, which the web-interface
 tests use. The engine itself needs neither it nor any other dependency.
 
-111 tests, no network access and no API key required. The agent's constraints are
+167 tests, no network access and no API key required. The agent's constraints are
 enforced in code rather than requested in the prompt, so all of them are tested
 by calling that code directly with the output a misbehaving model would produce.
 
@@ -43,3 +43,15 @@ deliberate bugs were introduced and each was caught:
 | Fee tolerance widened to absorb a real overcharge | 1 test |
 | Amount check removed from the verification gate | 1 test |
 | Failover demotes the whole provider on any failure | 3 tests |
+
+**The integrity rules** added after the adversarial run (`test_integrity.py`)
+are each tested in both directions with hand-built records: the defect is
+flagged, and the nearest legitimate record is not. A rule that catches its
+defect by also flagging ordinary rows buries the real breaks in noise.
+
+**The JSON API and its payload** (`test_api.py`) are tested for what the
+dashboard relies on: the money flow conserves at every node in integer paise,
+every entity appears once, figures agree with the evaluator, CORS admits only
+the Pages site, a visitor's key never spends the operator's budget or touches
+the environment, a spoofed forwarded header cannot reset a client's limit, and
+static files cannot be read from outside the build directory.

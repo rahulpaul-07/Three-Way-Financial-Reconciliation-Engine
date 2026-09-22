@@ -28,23 +28,68 @@ is deleted when the request completes. Nothing is stored.
 
 from __future__ import annotations
 
+import os
+import re
 import shutil
 import sys
 import tempfile
+import threading
+import time
 import traceback
+from collections import defaultdict, deque
 from pathlib import Path
 
 from fastapi import FastAPI, File, Request, UploadFile
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 SRC = Path(__file__).resolve().parent
 sys.path.insert(0, str(SRC))
 
-from evaluate import grade  # noqa: E402
+from analysis import DATASET_INFO, analyse, taxonomy_payload  # noqa: E402
 from matcher import Engine, load  # noqa: E402
 from report import build  # noqa: E402
 
-app = FastAPI(title="Three-way reconciliation")
+ROOT = SRC.parent
+DATASETS = ROOT / "datasets"
+# The built dashboard. Absent in a plain checkout (CI, the test suite), in which
+# case `/` falls back to the original single-page form so nothing depends on a
+# Node toolchain having run.
+WEB_DIST = Path(os.environ.get("RECON_WEB_DIST", ROOT / "web" / "dist"))
+
+app = FastAPI(
+    title="Three-way reconciliation",
+    version="2.0.0",
+    description=("Reconciles a merchant ledger, a payment gateway report and a "
+                 "bank statement. The deterministic endpoints need no API key."),
+    docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json",
+)
+app.add_middleware(GZipMiddleware, minimum_size=2048)
+
+# The static site on GitHub Pages calls this API cross-origin. Only the origins
+# listed may, and none of the endpoints use cookies, so credentials stay off.
+_ORIGINS = [o.strip() for o in os.environ.get(
+    "RECON_CORS_ORIGINS",
+    "https://rahulpaul-07.github.io,http://localhost:5173,http://127.0.0.1:5173",
+).split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=_ORIGINS,
+                   allow_methods=["GET", "POST"],
+                   allow_headers=["content-type", "x-api-key"],
+                   allow_credentials=False, max_age=3600)
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    h = response.headers
+    h.setdefault("X-Content-Type-Options", "nosniff")
+    h.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    h.setdefault("X-Frame-Options", "DENY")
+    h.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if request.url.path.startswith("/api/"):
+        h.setdefault("Cache-Control", "no-store")
+    return response
 
 MAX_BYTES = 8 * 1024 * 1024          # a 5,000-order batch is well under 1 MB
 REQUIRED = ("ledger", "gateway", "bank")
@@ -55,41 +100,89 @@ REQUIRED = ("ledger", "gateway", "bank")
 AGENT_MAX_RECORDS = 3
 RATE_LIMIT_PER_HOUR = 60
 
-_calls: list[float] = []
+class SlidingWindowLimiter:
+    """
+    Per-bucket sliding-window limit, in memory, per process.
+
+    Adequate for a single free-tier instance; a horizontally scaled deployment
+    would move this to a shared store such as Redis. Thread-safe because the
+    synchronous endpoints run in a worker pool.
+    """
+
+    def __init__(self, limit: int, window_s: float = 3600.0):
+        self.limit, self.window = limit, window_s
+        self._hits: dict[str, deque] = defaultdict(deque)
+        self._lock = threading.Lock()
+
+    def hit(self, bucket: str = "global") -> bool:
+        """Record a request. True means it is over the limit and refused."""
+        now = time.time()
+        with self._lock:
+            q = self._hits[bucket]
+            while q and now - q[0] >= self.window:
+                q.popleft()
+            if len(q) >= self.limit:
+                return True
+            q.append(now)
+            return False
+
+    def clear(self) -> None:
+        with self._lock:
+            self._hits.clear()
+
+
+# Requests paid for by the operator's key share one global budget. Requests
+# that bring their own key do not spend it -- the page says so, and before
+# this split it was untrue: the global check ran first, so a visitor with a
+# key was refused once the operator's quota was gone.
+operator_limiter = SlidingWindowLimiter(RATE_LIMIT_PER_HOUR)
+visitor_limiter = SlidingWindowLimiter(30)
+# The deterministic endpoints cost CPU, not money. A generous per-client cap
+# keeps one client from monopolising a free-tier instance.
+engine_limiter = SlidingWindowLimiter(240)
+
+# Kept for compatibility with callers and tests written against the original
+# single-list limiter.
+_calls = operator_limiter._hits["global"]
 
 
 def _rate_limited() -> bool:
-    """Global, in-memory, per-process. Adequate for a single free-tier
-    instance; a real deployment would use a shared store."""
-    import time
-    now = time.time()
-    _calls[:] = [t for t in _calls if now - t < 3600]
-    if len(_calls) >= RATE_LIMIT_PER_HOUR:
-        return True
-    _calls.append(now)
-    return False
+    return operator_limiter.hit("global")
+
+
+def _client_id(request: Request) -> str:
+    """
+    The caller's address, as the ASGI server resolved it.
+
+    Deliberately not read from X-Forwarded-For here: that header's first entry
+    is whatever the client chose to send, so keying a limit on it lets anyone
+    reset their own limit per request. Behind a proxy, uvicorn's
+    --proxy-headers resolves the real address from the proxy's own entry.
+    """
+    return request.client.host if request.client else "unknown"
+
+
+def _model_rate_limited(request: Request, visitor_key: str | None) -> bool:
+    if visitor_key:
+        return visitor_limiter.hit(_client_id(request))
+    return operator_limiter.hit("global")
 
 
 def _provider_for(request_key: str | None):
     """
     Resolve a provider, preferring a key supplied with the request.
 
-    A visitor's key is used for that request only. It is not written to disk,
-    not logged, and not retained after the response.
+    A visitor's key is handed straight to one Anthropic client for that
+    request. It is never written to the environment, disk or logs. The
+    original version set it in os.environ and restored it afterwards, which
+    had two problems: the variable was briefly visible to anything else
+    running in the process, and the visitor's request was served by the full
+    failover chain -- so a failing visitor key fell through to the operator's
+    other providers and spent the operator's money on the visitor's request.
     """
-    import os
-
-    from llm import get_provider
+    from llm import AnthropicProvider, get_provider
     if request_key:
-        previous = os.environ.get("ANTHROPIC_API_KEY")
-        os.environ["ANTHROPIC_API_KEY"] = request_key
-        try:
-            return get_provider()
-        finally:
-            if previous is None:
-                os.environ.pop("ANTHROPIC_API_KEY", None)
-            else:
-                os.environ["ANTHROPIC_API_KEY"] = previous
+        return AnthropicProvider(api_key=request_key)
     return get_provider()
 
 
@@ -360,8 +453,52 @@ document.getElementById('invBtn').addEventListener('click', async () => {
 </body></html>"""
 
 
-@app.get("/", response_class=HTMLResponse)
-def index() -> str:
+SETTLEMENTS_HEADER = "settlement_id,capture_date,payout_date,total_paise,utr\n"
+TRUTH_HEADER = ("entity_id,entity_type,expected_classification,"
+                "expected_match_target,notes\n")
+
+
+def _write_stubs(workdir: Path) -> None:
+    """
+    The loader expects every file to exist. A settlement report is optional in
+    an upload, and an empty one is honest: it means every bank row has to be
+    matched by inference rather than by reference. Written in one place; it
+    had been copied into three handlers.
+    """
+    if not (workdir / "settlements.csv").exists():
+        (workdir / "settlements.csv").write_text(SETTLEMENTS_HEADER,
+                                                 encoding="utf-8")
+    if not (workdir / "ground_truth.csv").exists():
+        (workdir / "ground_truth.csv").write_text(TRUTH_HEADER,
+                                                  encoding="utf-8")
+
+
+async def _read_bounded(f) -> bytes | None:
+    """
+    Read an upload, refusing it once it passes MAX_BYTES.
+
+    `await f.read()` with no argument pulls the whole body into memory before
+    the size is known, so the limit protected the parser but not the process.
+    Reading one byte past the limit is enough to know it was exceeded.
+    """
+    data = await f.read(MAX_BYTES + 1)
+    return None if len(data) > MAX_BYTES else data
+
+
+def _spa_index() -> Path | None:
+    idx = WEB_DIST / "index.html"
+    return idx if idx.is_file() else None
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+def index():
+    idx = _spa_index()
+    return FileResponse(idx) if idx else HTMLResponse(PAGE)
+
+
+@app.get("/classic", response_class=HTMLResponse, include_in_schema=False)
+def classic() -> str:
+    """The original single-page form, kept for anyone linked to it."""
     return PAGE
 
 
@@ -424,8 +561,8 @@ async def reconcile(
         for name, f in uploads.items():
             if f is None:
                 continue
-            data = await f.read()
-            if len(data) > MAX_BYTES:
+            data = await _read_bounded(f)
+            if data is None:
                 return JSONResponse(status_code=413, content={
                     "detail": f"{name}.csv is larger than "
                               f"{MAX_BYTES // 1024 // 1024} MB"})
@@ -436,19 +573,7 @@ async def reconcile(
                 continue
             (tmp / f"{name}.csv").write_bytes(data)
 
-        # A settlement report is optional in the upload but required by the
-        # loader, because it is what joins gateway rows to bank credits. An
-        # empty one is honest: it means every bank row must be matched by
-        # inference rather than by reference.
-        if not (tmp / "settlements.csv").exists():
-            (tmp / "settlements.csv").write_text(
-                "settlement_id,capture_date,payout_date,total_paise,utr\n",
-                encoding="utf-8")
-        if not (tmp / "ground_truth.csv").exists():
-            (tmp / "ground_truth.csv").write_text(
-                "entity_id,entity_type,expected_classification,"
-                "expected_match_target,notes\n", encoding="utf-8")
-
+        _write_stubs(tmp)
         return HTMLResponse(_reconcile_dir(tmp))
 
     except KeyError as exc:
@@ -474,23 +599,6 @@ async def reconcile(
 # --------------------------------------------------------------------------
 # Model-backed endpoints
 # --------------------------------------------------------------------------
-
-def _batch_from(payload: dict) -> Path:
-    """Write an uploaded batch to a temporary directory."""
-    tmp = Path(tempfile.mkdtemp(prefix="recon-ai-"))
-    for name in ("ledger", "gateway", "bank", "settlements", "ground_truth"):
-        content = payload.get(name)
-        if content:
-            (tmp / f"{name}.csv").write_text(content, encoding="utf-8")
-    for name, header in (
-            ("settlements", "settlement_id,capture_date,payout_date,"
-                            "total_paise,utr\n"),
-            ("ground_truth", "entity_id,entity_type,expected_classification,"
-                             "expected_match_target,notes\n")):
-        if not (tmp / f"{name}.csv").exists():
-            (tmp / f"{name}.csv").write_text(header, encoding="utf-8")
-    return tmp
-
 
 def _sample_batch() -> Path:
     import subprocess
@@ -545,8 +653,8 @@ async def _read_request(request: Request) -> tuple[str, Path | None, str | None]
     tmp = Path(tempfile.mkdtemp(prefix="recon-"))
     try:
         for name, f in supplied.items():
-            data = await f.read()
-            if len(data) > MAX_BYTES:
+            data = await _read_bounded(f)
+            if data is None:
                 shutil.rmtree(tmp, ignore_errors=True)
                 return question, None, (
                     f"{name}.csv is larger than "
@@ -558,18 +666,7 @@ async def _read_request(request: Request) -> tuple[str, Path | None, str | None]
                 continue
             (tmp / f"{name}.csv").write_bytes(data)
 
-        # The loader expects every file to exist. /reconcile writes header-only
-        # stubs for the optional ones and this path must do the same: an empty
-        # settlement report is honest -- it means every bank row has to be
-        # matched by inference rather than by reference.
-        if not (tmp / "settlements.csv").exists():
-            (tmp / "settlements.csv").write_text(
-                "settlement_id,capture_date,payout_date,total_paise,utr\n",
-                encoding="utf-8")
-        if not (tmp / "ground_truth.csv").exists():
-            (tmp / "ground_truth.csv").write_text(
-                "entity_id,entity_type,expected_classification,"
-                "expected_match_target,notes\n", encoding="utf-8")
+        _write_stubs(tmp)
 
         # Validate here rather than in the handler. Two reasons: the handler
         # runs after the provider check, so a bad batch would otherwise fail
@@ -602,13 +699,13 @@ async def investigate(request: Request) -> JSONResponse:
     an uncapped public endpoint would be an invitation to spend someone else's
     money.
     """
-    if _rate_limited():
+    key = request.headers.get("x-api-key") or None
+    if _model_rate_limited(request, key):
         return JSONResponse(status_code=429, content={
             "detail": f"Rate limit reached ({RATE_LIMIT_PER_HOUR}/hour). The "
                       f"model-backed endpoints are capped because the cost is "
                       f"the operator's. Supply your own key to bypass this."})
 
-    key = request.headers.get("x-api-key") or None
     provider = _provider_for(key)
     if not provider.available:
         return JSONResponse(status_code=503, content={
@@ -667,9 +764,11 @@ async def investigate(request: Request) -> JSONResponse:
 @app.post("/ask")
 async def ask(request: Request) -> JSONResponse:
     """Answer one plain-English question about the sample batch."""
-    if _rate_limited():
+    key = request.headers.get("x-api-key") or None
+    if _model_rate_limited(request, key):
         return JSONResponse(status_code=429, content={
-            "detail": f"Rate limit reached ({RATE_LIMIT_PER_HOUR}/hour)."})
+            "detail": f"Rate limit reached ({RATE_LIMIT_PER_HOUR}/hour). "
+                      f"Supply your own key to bypass this."})
 
     question, updir, err = await _read_request(request)
     if err:
@@ -681,7 +780,6 @@ async def ask(request: Request) -> JSONResponse:
             "detail": "No question supplied." if not question
                       else "Question is too long."})
 
-    key = request.headers.get("x-api-key") or None
     provider = _provider_for(key)
     if not provider.available:
         if updir:
@@ -716,6 +814,180 @@ async def ask(request: Request) -> JSONResponse:
                       "beside each upload field."})
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
+
+
+# --------------------------------------------------------------------------
+# JSON API (v1) -- what the dashboard calls
+# --------------------------------------------------------------------------
+# Same engine, same guarantees as the HTML endpoints above; the difference is
+# only the shape of the response. None of these needs a language model.
+
+def _engine_limited(request: Request) -> JSONResponse | None:
+    if engine_limiter.hit(_client_id(request)):
+        return JSONResponse(status_code=429, content={
+            "detail": "Too many reconciliations from this client in the last "
+                      "hour. The engine is free to run locally: see the README."})
+    return None
+
+
+def _analyse_or_error(workdir: Path, source: str) -> JSONResponse:
+    try:
+        return JSONResponse(analyse(workdir, source=source))
+    except KeyError as exc:
+        return JSONResponse(status_code=400, content={
+            "detail": f"A required column is missing: {exc}. Check the field "
+                      f"names listed beside each upload."})
+    except ValueError as exc:
+        return JSONResponse(status_code=400, content={
+            "detail": f"Could not parse the files: {exc}"})
+    except Exception:                                     # noqa: BLE001
+        print(traceback.format_exc(limit=3), file=sys.stderr)
+        return JSONResponse(status_code=500, content={
+            "detail": "Reconciliation failed. The files parsed but the engine "
+                      "could not complete."})
+
+
+@app.get("/api/v1/health", tags=["meta"])
+def api_health() -> dict:
+    from llm import get_provider
+    return {"status": "ok", "version": app.version, "model_required": False,
+            "model_configured": bool(get_provider().available)}
+
+
+@app.get("/api/v1/taxonomy", tags=["meta"])
+def api_taxonomy() -> dict:
+    """Every classification the engine can emit, with its severity."""
+    return taxonomy_payload()
+
+
+@app.get("/api/v1/datasets", tags=["reconcile"])
+def api_datasets() -> list[dict]:
+    """The bundled sample batches that can be reconciled by name."""
+    return [d for d in DATASET_INFO if (DATASETS / d["name"]).is_dir()]
+
+
+@app.post("/api/v1/datasets/{name}", tags=["reconcile"])
+def api_dataset(name: str, request: Request) -> JSONResponse:
+    # Resolved against the known list, never joined blindly: a name like
+    # "../src" must not reach the filesystem.
+    if name not in {d["name"] for d in api_datasets()}:
+        return JSONResponse(status_code=404,
+                            content={"detail": f"unknown dataset '{name}'"})
+    if (limited := _engine_limited(request)):
+        return limited
+    return _analyse_or_error(DATASETS / name, source=name)
+
+
+@app.post("/api/v1/sample", tags=["reconcile"])
+async def api_sample(request: Request) -> JSONResponse:
+    """
+    Generate a fresh batch and reconcile it. Body (all optional):
+    {"seed": 42, "orders": 120, "defect_scale": 1.0, "compound": false}
+    """
+    import subprocess
+
+    if (limited := _engine_limited(request)):
+        return limited
+    try:
+        body = await request.json()
+    except Exception:                                     # noqa: BLE001
+        body = {}
+    body = body if isinstance(body, dict) else {}
+    try:
+        seed = int(body.get("seed", 42))
+        orders = int(body.get("orders", 120))
+        scale = float(body.get("defect_scale", 1.0))
+    except (TypeError, ValueError):
+        return JSONResponse(status_code=400, content={
+            "detail": "seed and orders must be integers, defect_scale a number"})
+    if not (0 <= seed <= 1_000_000 and 20 <= orders <= 2000
+            and 0.0 <= scale <= 6.0):
+        return JSONResponse(status_code=400, content={
+            "detail": "seed 0-1000000, orders 20-2000, defect_scale 0-6"})
+
+    tmp = Path(tempfile.mkdtemp(prefix="recon-sample-"))
+    try:
+        cmd = [sys.executable, str(SRC / "generate_data.py"), "--seed",
+               str(seed), "--orders", str(orders), "--defect-scale",
+               str(scale), "--out", str(tmp)]
+        if body.get("compound"):
+            cmd.append("--compound")
+        subprocess.run(cmd, check=True, capture_output=True, timeout=60)
+        label = f"Generated batch, seed {seed}, {orders} orders"
+        if scale != 1.0:
+            label += f", defects x{scale:g}"
+        if body.get("compound"):
+            label += ", compound"
+        return _analyse_or_error(tmp, source=label)
+    except Exception:                                     # noqa: BLE001
+        print(traceback.format_exc(limit=3), file=sys.stderr)
+        return JSONResponse(status_code=500,
+                            content={"detail": "sample generation failed"})
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+@app.post("/api/v1/reconcile", tags=["reconcile"])
+async def api_reconcile(
+    request: Request,
+    ledger: UploadFile = File(...),
+    gateway: UploadFile = File(...),
+    bank: UploadFile = File(...),
+    settlements: UploadFile | None = File(None),
+    ground_truth: UploadFile | None = File(None),
+) -> JSONResponse:
+    """Reconcile uploaded CSVs. Nothing is stored after the response."""
+    if (limited := _engine_limited(request)):
+        return limited
+    tmp = Path(tempfile.mkdtemp(prefix="recon-"))
+    try:
+        uploads = {"ledger": ledger, "gateway": gateway, "bank": bank,
+                   "settlements": settlements, "ground_truth": ground_truth}
+        for name, f in uploads.items():
+            if f is None:
+                continue
+            data = await _read_bounded(f)
+            if data is None:
+                return JSONResponse(status_code=413, content={
+                    "detail": f"{name}.csv is larger than "
+                              f"{MAX_BYTES // 1024 // 1024} MB"})
+            if not data.strip():
+                if name in REQUIRED:
+                    return JSONResponse(status_code=400, content={
+                        "detail": f"{name}.csv is empty"})
+                continue
+            (tmp / f"{name}.csv").write_bytes(data)
+        _write_stubs(tmp)
+        return _analyse_or_error(tmp, source="Your upload")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+# The model-backed endpoints under the versioned prefix, so the dashboard has
+# one base path. Same handlers, same limits.
+app.add_api_route("/api/v1/investigate", investigate, methods=["POST"],
+                  tags=["model"])
+app.add_api_route("/api/v1/ask", ask, methods=["POST"], tags=["model"])
+
+
+# --------------------------------------------------------------------------
+# Dashboard assets. Registered last so no API route is ever shadowed.
+# --------------------------------------------------------------------------
+
+@app.get("/{path:path}", include_in_schema=False)
+def spa_files(path: str):
+    if path.startswith("api/"):
+        return JSONResponse(status_code=404, content={"detail": "not found"})
+    if WEB_DIST.is_dir():
+        target = (WEB_DIST / path).resolve()
+        # Refuse anything that resolves outside the build directory.
+        if target.is_file() and WEB_DIST.resolve() in target.parents:
+            headers = ({"Cache-Control": "public, max-age=31536000, immutable"}
+                       if path.startswith("assets/") else {})
+            return FileResponse(target, headers=headers)
+        if (idx := _spa_index()) and "." not in path.rsplit("/", 1)[-1]:
+            return FileResponse(idx)      # client-side route
+    return JSONResponse(status_code=404, content={"detail": "not found"})
 
 
 if __name__ == "__main__":
