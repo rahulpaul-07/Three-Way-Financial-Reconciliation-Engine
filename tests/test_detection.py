@@ -219,20 +219,43 @@ class TestDetectionGrader:
         assert all(o.emitted == "missing_bank_row" for o in bal), \
             [o.emitted for o in bal]
 
-    def test_absent_and_clean_are_reported_separately(self, batch):
+    def test_absent_and_clean_are_reported_separately(self, batch, monkeypatch):
         """
         Two different failures. `clean` means the engine examined the record
         and passed it; `absent` means it never emitted anything about the
         record at all. The second is the one the resolution-driven grader in
         `grade()` is structurally blind to, which is why this grader walks
         truth instead.
+
+        The real engine no longer produces either state on this batch, so the
+        grader is exercised against a deliberately blinded engine that
+        reproduces the two historical failures: currency read as clean, and a
+        refund row never examined.
         """
+        import evaluate
+        from matcher import Engine
+
+        class Blinded(Engine):
+            def run(self):
+                out = []
+                for r in super().run():
+                    if r.classification == "unreversed_refund_fee":
+                        continue
+                    if r.classification == "currency_mismatch":
+                        r.classification, r.resolved = "clean", True
+                    out.append(r)
+                self.resolutions = out
+                return out
+
+        monkeypatch.setattr(evaluate, "Engine", Blinded)
         outcomes, summary = grade_detection(batch)
-        states = {o.state for o in outcomes}
-        assert "silent_clean" in states
-        assert "silent_absent" in states
+        states = {o.planted: o.state for o in outcomes}
+        assert states["currency_mismatch"] == "silent_clean"
+        assert states["unreversed_refund_fee"] == "silent_absent"
         assert summary["silent"] == sum(
             1 for o in outcomes if o.state != "detected")
+        assert set(summary["blind_spot_classes"]) == {
+            "currency_mismatch", "unreversed_refund_fee"}
 
     def test_detection_rate_is_consistent_with_the_outcomes(self, batch):
         outcomes, summary = grade_detection(batch)
@@ -247,10 +270,22 @@ class TestDetectionGrader:
     # undocumented blind spot: it was silent, no test named it, so nothing
     # flagged it. `SILENT` classes are the finding; `DETECTED` classes must
     # stay caught -- a regression that flips one silently degrades the engine.
-    SILENT = {"currency_mismatch", "duplicate_bank_row",
-              "dangling_settlement_ref", "unreversed_refund_fee"}
+    # Every class that was once a blind spot is now caught. `SILENT` is kept,
+    # empty, as the place a new finding goes: a class added to the generator
+    # that the engine misses belongs here until it is fixed, and pinning it
+    # keeps the finding visible rather than letting it sit undocumented the
+    # way duplicate_bank_row once did.
+    SILENT: set[str] = set()
     DETECTED = {"amount_transposition", "net_arithmetic_control",
-                "balance_inconsistency", "payout_reversal", "split_settlement"}
+                "balance_inconsistency", "payout_reversal", "split_settlement",
+                "currency_mismatch", "duplicate_bank_row",
+                "dangling_settlement_ref", "unreversed_refund_fee"}
+    # Classes the engine now names exactly, rather than merely flags. The two
+    # positive controls and the balance break are caught under the labels the
+    # engine already had, which is correct for them.
+    NAMED = {"payout_reversal", "split_settlement", "currency_mismatch",
+             "duplicate_bank_row", "dangling_settlement_ref",
+             "unreversed_refund_fee"}
 
     def test_every_declared_class_has_a_pinned_state(self):
         """
@@ -262,15 +297,13 @@ class TestDetectionGrader:
         assert self.SILENT | self.DETECTED == UNSEEN_LABELS, (
             "a declared class is missing from the state map; classify it as "
             "SILENT (a blind spot) or DETECTED before merging")
+        assert not self.SILENT & self.DETECTED
 
     def test_blind_spot_classes_stay_silent(self, batch):
         """
-        Pins the four known blind spots: currency is never read, a duplicate
-        bank credit passes as clean, a dangling settlement reference is never
-        checked, and a refund's own fee is never validated.
-
-        Expected to FAIL when any is fixed -- a record of a known defect, not
-        an assertion it is correct. Move the class to DETECTED when you fix it.
+        Pins any known blind spots. Empty since the four found by this harness
+        (currency, duplicate bank credit, dangling settlement reference, refund
+        fee) were closed; see NOTES.md for how each was fixed.
         """
         _, summary = grade_detection(batch)
         for cls in self.SILENT:
@@ -280,16 +313,26 @@ class TestDetectionGrader:
 
     def test_caught_classes_stay_detected(self, batch):
         """
-        The other side of the pin. These are caught today (mislabelled for the
-        non-controls, but flagged); a change that lets one slip to silent is a
-        regression, and the two controls slipping to silent means the grader
-        itself broke.
+        A change that lets a caught class slip back to silent is a regression,
+        and the two controls slipping to silent means the grader itself broke.
         """
         _, summary = grade_detection(batch)
+        assert summary["blind_spot_classes"] == []
         for cls in self.DETECTED:
             c = summary["by_class"][cls]
             assert c.get("silent_clean", 0) == 0 and c.get("silent_absent", 0) == 0, (
                 f"{cls} now has silent records: {c}")
+
+    def test_formerly_blind_classes_are_named_exactly(self, batch):
+        """
+        Detection is the floor; the analyst also needs the right name. A
+        duplicate bank credit reported as `orphan_bank_credit` would be caught
+        and still send someone looking for the wrong thing.
+        """
+        outcomes, _ = grade_detection(batch)
+        for o in outcomes:
+            if o.planted in self.NAMED:
+                assert o.emitted == o.planted, (o.entity_id, o.planted, o.emitted)
 
     def test_txn_level_positive_control_is_detected(self, batch):
         """

@@ -30,7 +30,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from assignment import IMPOSSIBLE, assign  # noqa: E402
 from core import (  # noqa: E402
     FEE_TOLERANCE_PAISE, MONEY_MOVING_STATUSES, NON_SETTLING_STATUSES,
-    expected_fee, paise_to_rupees_str, working_day_window,
+    SETTLEMENT_CURRENCY, expected_fee, paise_to_rupees_str, working_day_window,
 )
 
 
@@ -250,6 +250,19 @@ class Engine:
     # ---- Tier 1: exact key joins ----------------------------------------
     def tier1_exact_keys(self) -> None:
         for o in self.orders:
+            # Checked before anything else: every later comparison assumes the
+            # ledger and the gateway count in the same unit. Without this, 499
+            # dollars reconciled against 499 rupees and the order read clean.
+            if o.currency.strip().upper() != SETTLEMENT_CURRENCY:
+                self._emit(
+                    entity_id=o.order_id, entity_type="order",
+                    classification="currency_mismatch", tier=1,
+                    detail=(f"ledger records {o.currency}; the gateway and the "
+                            f"bank settle in {SETTLEMENT_CURRENCY}, so the "
+                            f"amounts are not comparable"),
+                    resolved=False)
+                continue
+
             txns = self.txn_by_order.get(o.order_id, [])
             payments = [t for t in txns if t.txn_type == "payment"]
             refunds = [t for t in txns if t.txn_type == "refund"]
@@ -374,6 +387,48 @@ class Engine:
                             f"report says {paise_to_rupees_str(s.total_paise)}"),
                     resolved=False)
 
+    # ---- Tier 1c: transaction-level references and refund fees ---------
+    def tier1_txn_integrity(self) -> None:
+        """
+        Checks that belong to a transaction row rather than to its order.
+
+        Both were blind spots found by the adversarial harness: the order-level
+        pass stops at the first classification it can give an order, so a
+        refund row's own fee was never examined, and a settlement_id was only
+        ever used to group rows, never checked to exist.
+        """
+        already = {r.entity_id for r in self.resolutions}
+        for t in self.txns:
+            if t.txn_id in already:
+                continue      # one entity, one resolution: tier 0 spoke first
+            if t.settlement_id and t.settlement_id not in self.settlement_by_id:
+                self._emit(
+                    entity_id=t.txn_id, entity_type="txn",
+                    classification="dangling_settlement_ref", tier=1,
+                    matched_to=t.settlement_id,
+                    detail=(f"settlement_id {t.settlement_id} is not in the "
+                            f"settlement report; "
+                            f"{paise_to_rupees_str(t.net_amount_paise)} claims a "
+                            f"payout nobody can trace"),
+                    resolved=False)
+                continue
+
+            # The fee table has no rule for refunds: a refund moves the gross
+            # back and carries no charge of its own. Any fee on one is money
+            # the merchant lost that no identity check will ever surface,
+            # because the row still satisfies gross - fee - gst == net.
+            if (t.txn_type == "refund" and t.status in MONEY_MOVING_STATUSES
+                    and (t.fee_paise or t.gst_on_fee_paise)):
+                self._emit(
+                    entity_id=t.txn_id, entity_type="txn",
+                    classification="unreversed_refund_fee", tier=1,
+                    matched_to=t.order_ref or "",
+                    detail=(f"refund carries fee "
+                            f"{paise_to_rupees_str(t.fee_paise)} + gst "
+                            f"{paise_to_rupees_str(t.gst_on_fee_paise)}; "
+                            f"refunds attract no fee under the rule table"),
+                    resolved=False)
+
     # ---- Tier 1c / Tier 2: bank rows to settlements ----------------------
     def match_bank_rows(self) -> None:
         by_utr = {s.utr: s for s in self.settlements if s.utr}
@@ -385,6 +440,21 @@ class Engine:
         for row in self.bank:
             if row.utr and row.utr in by_utr:
                 s = by_utr[row.utr]
+                if s.settlement_id in claimed:
+                    # The settlement has already been paid by an earlier line.
+                    # Accepting this one too would reconcile the same money
+                    # twice and overstate the statement -- previously it did,
+                    # and both lines read clean.
+                    self._emit(
+                        entity_id=row.bank_txn_id, entity_type="bank_row",
+                        classification="duplicate_bank_row", tier=1,
+                        matched_to=s.settlement_id,
+                        detail=(f"UTR {row.utr} already reconciled to "
+                                f"{s.settlement_id} by an earlier line; this "
+                                f"{paise_to_rupees_str(row.movement_paise)} "
+                                f"is a second credit for the same payout"),
+                        resolved=False)
+                    continue
                 if s.total_paise == row.movement_paise:
                     claimed.add(s.settlement_id)
                     self._emit(
@@ -409,6 +479,7 @@ class Engine:
         # An exact amount match inside the plausible payout window is strong
         # evidence; anything ambiguous is escalated rather than guessed.
         contested: list = []
+        orphans: list[BankRow] = []
 
         for row in deferred:
             candidates = []
@@ -436,12 +507,7 @@ class Engine:
                 # avoidable mismatch. Collect them and solve jointly below.
                 contested.append((row, candidates))
             else:
-                self._emit(
-                    entity_id=row.bank_txn_id, entity_type="bank_row",
-                    classification="orphan_bank_credit", tier=2,
-                    detail=(f"{paise_to_rupees_str(row.movement_paise)} on "
-                            f"{row.value_date} corresponds to no settlement"),
-                    resolved=False)
+                orphans.append(row)
 
         # ---- Tier 2b: joint assignment for the contested rows -------------
         # Greedy matching commits to the best pair it sees first, which can
@@ -477,6 +543,17 @@ class Engine:
                             f"{len(pool)} settlement(s); resolved by optimal "
                             f"assignment ({pairing.reason})"))
 
+        # ---- Tier 2c: explain what is left before calling it an orphan ------
+        orphans = self._match_split_settlements(orphans, claimed)
+        orphans = self._match_payout_reversals(orphans, claimed)
+        for row in orphans:
+            self._emit(
+                entity_id=row.bank_txn_id, entity_type="bank_row",
+                classification="orphan_bank_credit", tier=2,
+                detail=(f"{paise_to_rupees_str(row.movement_paise)} on "
+                        f"{row.value_date} corresponds to no settlement"),
+                resolved=False)
+
         # Settlements that were reported but never appeared on the statement.
         for s in self.settlements:
             if s.settlement_id in claimed or s.total_paise == 0:
@@ -488,10 +565,87 @@ class Engine:
                         f"{s.payout_date} has no statement line"),
                 resolved=False)
 
+    def _match_split_settlements(self, orphans: list[BankRow],
+                                 claimed: set[str]) -> list[BankRow]:
+        """
+        A settlement paid in instalments: two to four unmatched credits, all
+        inside the settlement's payout window, summing to its total exactly.
+
+        Bounded the same way as `subset_sum` elsewhere, for the same evidential
+        reason -- a match that needs many terms is likely coincidence. Only
+        credits are considered, and a split must have at least two parts,
+        otherwise the single-row tiers above would already have matched it.
+        The result is recorded as resolved (the money did arrive in full) but
+        under its own class, so it is never mistaken for an ordinary match.
+        """
+        remaining = list(orphans)
+        for s in self.settlements:
+            if s.settlement_id in claimed or s.total_paise <= 0:
+                continue
+            lo, hi = working_day_window(s.capture_date)
+            pool = [r for r in remaining
+                    if (r.credit_paise or 0) > 0 and lo <= r.value_date <= hi]
+            if len(pool) < 2:
+                continue
+            idx = subset_sum([r.movement_paise for r in pool], s.total_paise)
+            if not idx or len(idx) < 2:
+                continue
+            parts = [pool[i] for i in idx]
+            claimed.add(s.settlement_id)
+            for part in parts:
+                remaining.remove(part)
+                self._emit(
+                    entity_id=part.bank_txn_id, entity_type="bank_row",
+                    classification="split_settlement", tier=2,
+                    matched_to=s.settlement_id,
+                    detail=(f"one of {len(parts)} instalments that together "
+                            f"pay {s.settlement_id} "
+                            f"({paise_to_rupees_str(s.total_paise)}) exactly"))
+        return remaining
+
+    def _match_payout_reversals(self, orphans: list[BankRow],
+                                claimed: set[str]) -> list[BankRow]:
+        """
+        A debit that returns a payout: same amount as a settlement already
+        credited, a few days after that credit. The credit stays reconciled;
+        this debit is reported unresolved, because the money is no longer in
+        the account even though the books say it settled.
+        """
+        credited = {r.bank_txn_id: r for r in self.bank}
+        paid: dict[int, list[tuple[str, BankRow]]] = defaultdict(list)
+        for res in self.resolutions:
+            if (res.entity_type == "bank_row" and res.classification == "clean"
+                    and res.matched_to in self.settlement_by_id):
+                row = credited[res.entity_id]
+                paid[row.movement_paise].append((res.matched_to, row))
+
+        remaining = []
+        for row in orphans:
+            if (row.debit_paise or 0) <= 0:
+                remaining.append(row)
+                continue
+            hits = [(sid, c) for sid, c in paid.get(row.debit_paise, [])
+                    if 0 <= (row.value_date - c.value_date).days <= 7]
+            if len(hits) != 1:
+                remaining.append(row)
+                continue
+            sid, credit = hits[0]
+            self._emit(
+                entity_id=row.bank_txn_id, entity_type="bank_row",
+                classification="payout_reversal", tier=2,
+                matched_to=sid,
+                detail=(f"debit of {paise_to_rupees_str(row.debit_paise)} "
+                        f"returns the payout for {sid} credited on "
+                        f"{credit.value_date} ({credit.bank_txn_id}); that "
+                        f"settlement is reconciled but the money has left"),
+                resolved=False)
+        return remaining
+
     # ---- entry point -----------------------------------------------------
     def run(self) -> list[Resolution]:
         self.tier0_internal_consistency()
         self.tier1_exact_keys()
+        self.tier1_txn_integrity()
         self.tier1_settlement_totals()
         self.match_bank_rows()
         return self.resolutions
