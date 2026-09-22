@@ -625,8 +625,20 @@ past the cap.
 
 The first version of the per-client limit keyed on the first entry of
 `X-Forwarded-For`. That entry is whatever the client sends, so anyone could
-reset their own limit by changing a header. It now uses the address uvicorn
-resolves with `--proxy-headers`, and a test sends a spoofed header.
+reset their own limit by changing a header.
+
+The second version was wrong in a less obvious way. It moved the job to
+uvicorn, started with `--proxy-headers --forwarded-allow-ips='*'`, and the
+docstring said uvicorn would resolve the real address. Reading uvicorn's
+source says otherwise: when every proxy is trusted, it returns the *leftmost*
+entry -- the same spoofable value as before, now hidden behind a flag. The test
+passed because it never set a proxy in front.
+
+Only the rightmost entry is trustworthy, because the proxy appended it, and
+only when there is exactly one proxy in front. So the app reads that entry
+itself, and only when `RECON_TRUST_PROXY` is set (render.yaml sets it). With
+no proxy in front, every entry is client-controlled, so by default the socket
+address is used. Tests cover both, with the spoofed entry on the left.
 
 ### 2026-09-22 - Two README figures had drifted from the code.
 
