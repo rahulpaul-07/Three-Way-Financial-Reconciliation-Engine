@@ -2,16 +2,28 @@
 
 [![tests](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions/workflows/tests.yml/badge.svg)](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions/workflows/tests.yml)
 [![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions)
-[![tests](https://img.shields.io/badge/tests-111%20passing-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-167%20passing-brightgreen)](tests/)
 [![accuracy](https://img.shields.io/badge/classification-100%25%20vs%20answer%20key-brightgreen)](#results)
+[![detection](https://img.shields.io/badge/unseen%20defects-26%2F26%20caught-brightgreen)](#results)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
 
-**[Live report](https://rahulpaul-07.github.io/Three-Way-Financial-Reconciliation-Engine/)** — generated
-output from the run described below: match rate, per-class metrics against the
-answer key, every exception with its reason, and the agent's full investigation
-trace for each one.
+**[Live dashboard](https://rahulpaul-07.github.io/Three-Way-Financial-Reconciliation-Engine/)** —
+the engine's output as an interactive workbench: where the captured money went,
+how every record was settled, a searchable table of every exception with its
+path traced across all four sources, the evidence charts, and the agent's
+recorded investigations. Pick a bundled batch, generate one, or upload your own
+three CSVs. The page reconciles on the live engine when it is awake and falls
+back to recorded runs when it is not, and says which.
 
-**[Live app](https://recon-engine-yjim.onrender.com)** — upload your own three CSVs, or run the sample batch. Hosted on a free tier, so the first load can take about 30 seconds. The reconciliation runs with no API key at all; the agent and Q&A panels use one, and you can supply your own for a single request instead.
+**[Live app](https://recon-engine-yjim.onrender.com)** — the same dashboard served
+by the engine itself, plus the JSON API (`/api/docs`). Hosted on a free tier, so
+the first load can take about 30 seconds. Reconciliation needs no API key; the
+agent and Q&A panels use one, and a visitor can supply their own for a single
+request.
+
+**[Static report](https://rahulpaul-07.github.io/Three-Way-Financial-Reconciliation-Engine/report.html)** —
+the original self-contained HTML report of the reference run, including the
+agent's full investigation trace.
 
 **[Five-minute walkthrough](https://youtu.be/NjFKpmBX1Zk)** — the engine run
 end to end, what the confidence tiers mean, where the model sits, and the bug
@@ -32,10 +44,11 @@ reads.
 | Batch | 120 orders, 141 reconcilable entities |
 | Resolved | **90.8%** (95% CI 84.9-94.5%) |
 | Classification accuracy | **100.0%** across 14 classes |
-| Under compound defects | degrades to 92.3% at 82% defect density |
-| Tests | 111, verified by mutation |
+| Under compound defects | degrades to 91.9% at 85% defect density, 81.5% when every record is defective |
+| Tests | 167, verified by mutation |
 | Across 12 independent batches | 92.7% +/- 0.4% resolved, 100.0% +/- 0.0% accuracy |
-| Throughput | ~233,000 entities/sec, flat from 141 to 5,022 |
+| Throughput | roughly 230,000-290,000 entities/sec from 141 to 5,022 entities (single runs), linear cost |
+| Unseen defect classes | 26/26 planted records flagged, 0 silent passes (was 15/26) |
 | Exceptions | 13, each listed with a reason. None dropped. |
 | Agent investigation | 13/13 answered, 12/13 agreed with the engine independently (Cohen's κ 0.90) |
 
@@ -46,16 +59,23 @@ records. They are not evidence of performance on a real merchant's books, where
 defect types this generator does not model would appear.
 
 Some of those types are now measured rather than left to the imagination.
-`src/adversarial_data.py` plants defect classes the engine has no rule for, and
-`python3 src/evaluate.py --data datasets/08-unseen --detection` scores whether
-it at least declines to call them clean. **Four are silent passes:** a duplicate
-bank credit and a foreign-currency order are both classified `clean`, and a
-dangling settlement reference and an unreversed refund fee are never examined at
-all. The duplicate credit is the sharpest — the same money counted twice
-reconciles without a flag. Two positive controls (one order-keyed, one
-txn-keyed) prove the grader reads emissions at both levels, so these are the
-engine's blind spots, not the harness's. All four are pinned in
-`tests/test_detection.py`.
+`src/adversarial_data.py` plants defect classes from outside the engine's
+original taxonomy, and `python3 src/evaluate.py --data datasets/08-unseen --detection`
+scores whether it at least declines to call them clean.
+
+The first run found **four silent passes**: a duplicate bank credit and a
+foreign-currency order were classified `clean`, and a dangling settlement
+reference and an unreversed refund fee were never examined at all. The
+duplicate credit was the sharpest — the same money counted twice reconciled
+without a flag. All four now have rules and tests, and two other unseen classes
+(split settlements, returned payouts) are now named rather than reported as
+orphan credits. Every planted record is flagged, 19 of 26 under their exact
+name; CI fails if any class goes silent again.
+
+The honest caveat: the rules were written *after* seeing these defects, so this
+batch no longer measures generalisation for them. It is now a regression suite.
+Measuring generalisation again needs a fresh round of classes the engine has
+not seen.
 
 Reproduce:
 
@@ -68,7 +88,7 @@ python3 src/investigate.py --data data --json agent_traces.json
 python3 src/report.py --data data --traces agent_traces.json \
                       --qa qa_answers.json --out report.html
 python3 src/ask.py --data data --demo --json qa_answers.json
-python3 -m pytest tests/ -q                           # 111 tests
+python3 -m pytest tests/ -q                           # 167 tests
 python3 src/evaluate.py --stress --compound --seeds 3 # where it breaks
 ```
 
@@ -222,13 +242,17 @@ experiment was wrong rather than a good result.
 
 Defects that *interact* do degrade it. Allowing several defects on one record:
 
-| Compound defect density | Classification accuracy |
-|---|---|
-| 22% | 100.0% |
-| 37% | 98.6% |
-| 52% | 97.6% |
-| 62% | 95.7% |
-| 82% | 92.3% |
+| Planted defect rate | Records defective | Classification accuracy |
+|---|---|---|
+| ×1 | 35% | 99.7% |
+| ×2 | 56% | 97.5% |
+| ×3 | 73% | 96.1% |
+| ×4 | 85% | 91.9% |
+| ×6 | 100% | 81.5% |
+
+Mean of three seeds at 120 orders, from
+`python3 src/evaluate.py --stress --compound --seeds 3`. With the same defect
+rates planted on *separate* records, accuracy is 100.0% at every level.
 
 Every failure has the same shape. An order carrying both a fee mismatch and a
 refund is reported as one or the other, because the taxonomy allows a single
@@ -242,46 +266,74 @@ than widening a taxonomy on the last day of a build.
 
 ## Web interface
 
+Two ways to run it locally:
+
 ```bash
+# Engine and API only (the original single-page form is served at /)
 pip install -r requirements-web.txt
 python -m uvicorn app:app --app-dir src --reload
+
+# With the dashboard
+cd web && npm ci && npm run build && cd ..
+python -m uvicorn app:app --app-dir src --reload      # dashboard at localhost:8000
+
+# Dashboard development with hot reload (proxies /api to :8000)
+cd web && npm run dev
 ```
 
-Upload a ledger, a gateway report and a bank statement at `localhost:8000` and
-the same report comes back. A settlement report and a ground-truth file are
-optional; supplying the latter adds measured per-class accuracy.
+Or as one container, which is how it is deployed:
 
-Two tiers of endpoint. **`/reconcile` and `/sample` need no language model** —
-no key, no per-request cost, nothing to leak, and they cannot fail because a
-vendor is down.
+```bash
+docker build -t recon-engine . && docker run -p 8000:8000 recon-engine
+```
 
-**`/investigate` and `/ask` run the agent and the settlement Q&A.** Exposing
-those publicly carries real cost, so: a key may come from the environment or
-from a request header (a visitor's, used once, never stored or logged);
-requests are globally rate limited; and the agent is capped at three records
-per call. With no key from either source the endpoints say so plainly rather
-than failing obscurely — which is the state CI runs in and asserts.
+**The dashboard** (`web/`) is React and TypeScript, built with Vite and styled
+with Tailwind. Components follow the shadcn layout (`web/components.json`), so
+registry components can be added with `npx shadcn add`. It computes nothing
+about the reconciliation: every figure comes from the engine's JSON output, and
+the recorded snapshots it falls back to (`web/public/data/`) are produced by
+`python3 scripts/build_site_data.py`, which runs the engine and the evaluator.
 
-Both model-backed endpoints answer about whatever is in the upload fields. If
-the three required files are selected, they travel with the request, get
-reconciled in it, and are deleted with the response; with nothing selected the
-endpoints fall back to a freshly generated sample batch. The response says
-which of the two it used, so no answer is ambiguous about its own source. A
-partial upload is refused rather than silently falling back — answering a
-question about data the caller never sent is worse than declining.
+**The JSON API** is versioned under `/api/v1`, with OpenAPI docs at `/api/docs`:
 
-Uploads are parsed in memory and written to a temporary directory deleted when
-the request completes. Nothing is stored, and because nothing is stored, a
-question can only be asked about files sent in the same request.
+| Endpoint | Needs a model | Does |
+|---|---|---|
+| `GET /api/v1/datasets` | no | lists the bundled batches |
+| `POST /api/v1/datasets/{name}` | no | reconciles one of them |
+| `POST /api/v1/sample` | no | generates a batch (seed, size, defect rate, compound) and reconciles it |
+| `POST /api/v1/reconcile` | no | reconciles uploaded CSVs |
+| `GET /api/v1/taxonomy` | no | every classification with its severity |
+| `POST /api/v1/investigate` | yes | runs the agent over up to three exceptions |
+| `POST /api/v1/ask` | yes | answers a question about the settlement data |
+
+The original HTML endpoints (`/reconcile`, `/sample`, `/investigate`, `/ask`)
+are unchanged, and the original form is still at `/classic`.
+
+Every response from the reconcile endpoints has the same shape
+(`src/analysis.py`): summary with Wilson intervals, per-class grading when an
+answer key is supplied, detection when the batch contains unseen defects, a
+money-flow graph whose flows are tested to conserve in paise, a daily series,
+every resolution with its amount and severity, and the raw records for lineage.
+
+**Operating the public endpoints.** The deterministic endpoints cost CPU, not
+money, and are limited per client. The model-backed endpoints spend the
+operator's key, so they share a global hourly budget — except when a visitor
+supplies their own key, which is handed to a single client for that request,
+never placed in the environment, never logged, and never allowed to fall
+through to the operator's other providers. Uploads are read with a size cap
+before they are parsed, written to a temporary directory and deleted with the
+response. Responses carry `nosniff`, frame-denial and referrer headers, and
+cross-origin calls are allowed only from the Pages site.
 
 ## Continuous integration
 
-Every push runs three jobs:
+Every push runs four jobs, and a separate workflow publishes the dashboard to GitHub Pages:
 
 | Job | What it proves |
 |---|---|
-| `test` | 111 tests pass on Python 3.10 through 3.13, with no provider SDK installed |
-| `reconcile` | a clean checkout generates, reconciles, grades and reports end to end |
+| `test` | 167 tests pass on Python 3.10 through 3.13, with no provider SDK installed |
+| `reconcile` | a clean checkout generates, reconciles, grades and reports end to end, and no unseen defect class passes silently |
+| `web` | the site data builds from a clean checkout, the dashboard type-checks and builds, and the engine serves it |
 | `provider-degradation` | the engine reconciles correctly with **no** language model configured |
 
 The `reconcile` job asserts the exact accuracy figure. A regression that lowers
@@ -341,14 +393,18 @@ src/investigate.py    runs the agent over unresolved records
 src/ask.py            settlement Q&A over aggregate queries
 src/evaluate.py       grading, Wilson intervals, variance, throughput
 src/report.py         self-contained HTML report
-src/app.py            web interface over the deterministic engine
+src/analysis.py       JSON view of a run, shared by the API and the site build
+src/taxonomy.py       every classification, its severity and meaning, in one place
+src/app.py            web interface and JSON API over the engine
+scripts/              site data build, agent trace extraction
+web/                  React dashboard (Vite, TypeScript, Tailwind)
 ```
 
 `ARCHITECTURE.md` - how the system is built and why each part is shaped that way,
 including a section on what it deliberately does not do.
 
 `DECISIONS.md` - fourteen design decisions, each with the alternative rejected.
-`NOTES.md` - sixteen entries logging what broke during the build and how each was
+`NOTES.md` - twenty-five entries logging what broke during the build and how each was
 resolved, written as they happened rather than reconstructed afterwards.
 Includes the case where the agent's investigation exposed a weakness in the
 answer key itself.

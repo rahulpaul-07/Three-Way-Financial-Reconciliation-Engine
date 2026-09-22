@@ -373,8 +373,9 @@ measured against that key rather than asserted.
 | Resolved | 90.8% (95% CI 84.9–94.5%) |
 | Classification accuracy | 100.0% across 14 classes |
 | Across 12 independent batches | 92.7% ± 0.4% resolved, 100.0% ± 0.0% accuracy |
-| Throughput | ~233,000 entities/sec, flat from 141 to 5,022 |
-| Tests | 87, verified by mutation |
+| Throughput | roughly 230,000-290,000 entities/sec from 141 to 5,022 (single runs), linear cost |
+| Unseen defect classes | 26/26 planted records flagged (15/26 before the fixes in NOTES.md) |
+| Tests | 167, verified by mutation |
 
 Confidence intervals are Wilson score rather than the normal approximation,
 which behaves badly near 1 and on small samples.
@@ -396,13 +397,13 @@ experiment was wrong rather than a good result.
 
 Defects that *interact* do degrade it:
 
-| Compound defect density | Accuracy |
-|---|---|
-| 22% | 100.0% |
-| 37% | 98.6% |
-| 52% | 97.6% |
-| 62% | 95.7% |
-| 82% | 92.3% |
+| Planted defect rate | Records defective | Accuracy |
+|---|---|---|
+| ×1 | 35% | 99.7% |
+| ×2 | 56% | 97.5% |
+| ×3 | 73% | 96.1% |
+| ×4 | 85% | 91.9% |
+| ×6 | 100% | 81.5% |
 
 Every failure has the same shape: an order carrying both a fee mismatch and a
 refund is reported as one or the other, because the taxonomy allows a single
@@ -440,17 +441,21 @@ Stated rather than discovered by a reader.
    investigation paths and, once, a different label. Both were defensible; the
    behaviour is not reproducible.
 6. **Synthetic data throughout.** No real merchant's books have been reconciled.
-7. **Four measured blind spots.** `src/adversarial_data.py` plants defect
-   classes the engine has no rule for and `evaluate.py --detection` scores
-   whether it at least refuses to call them clean. Four are silent passes:
-   a **duplicate bank credit** and a **currency mismatch** are both classified
-   `clean`; a **dangling settlement reference** and an **unreversed refund fee**
-   are never examined at all. The duplicate credit is the one that matters most
-   — the same money counted twice reconciles silently. These are held by
-   `tests/test_detection.py`, which pins each class as a blind spot until it is
-   fixed. Two positive controls (one order-keyed, one txn-keyed) prove the
-   grader can see emissions at both levels, so the silences are the engine's,
-   not the instrument's.
+7. **Detection of unseen defects is now a regression suite, not a
+   measurement.** `src/adversarial_data.py` plants defect classes from outside
+   the original taxonomy. Its first run found four silent passes (duplicate
+   bank credit, currency mismatch, dangling settlement reference, unreversed
+   refund fee); each now has a rule in the matcher and a test in
+   `tests/test_integrity.py`, and `tests/test_detection.py` pins every class as
+   caught. Because those rules were written after seeing the defects, the
+   batch can no longer show generalisation for them. A new round of unseen
+   classes is needed to measure that again.
+8. **Refund-fee rule is a convention of this model.** The rule table has no
+   fee for refunds, so any fee on one is flagged. A gateway that legitimately
+   charges for refunds would need a rule-table entry, not a matcher change.
+9. **Per-process rate limits.** The web layer's limits live in memory, which
+   is correct for one free-tier instance and wrong for several; a shared store
+   would replace them.
 
 ---
 
@@ -469,6 +474,10 @@ src/investigate.py    runs the agent over unresolved records
 src/ask.py            settlement Q&A over aggregate queries
 src/evaluate.py       grading, Wilson intervals, variance, stress, kappa
 src/report.py         self-contained HTML report
+src/taxonomy.py       every classification with its severity, in one place
+src/analysis.py       JSON view of a run (API responses, site snapshots)
+src/app.py            web interface, JSON API, dashboard hosting
+web/                  React dashboard; computes nothing about reconciliation
 ```
 
 Only `investigate.py` and `ask.py` require a language model. Everything else is
@@ -479,8 +488,10 @@ deterministic and runs with no API key and no network access.
 ## 10. Extending it
 
 **A new defect class** needs a planting rule in the generator, a detection rule
-in the matcher tier where it belongs, and an entry in the agent's taxonomy.
-The answer key updates itself from the generator.
+in the matcher tier where it belongs, and one row in `src/taxonomy.py`. The
+agent's allowed values, the report's grouping and the dashboard's colours all
+read that table, and a test fails if the matcher can emit a label it lacks. The
+answer key updates itself from the generator.
 
 **A new provider** is a subclass of `OpenAICompatibleProvider` with a base URL,
 environment variable and model list — four lines if it speaks the OpenAI

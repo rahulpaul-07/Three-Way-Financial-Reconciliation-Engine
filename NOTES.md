@@ -553,3 +553,96 @@ Worth noting what let this survive so long: every file the engine had ever read
 was written by my own generator, which writes plain UTF-8. Seven sample datasets
 and a hundred-odd tests all agreed with each other because they all came from
 the same source. The first genuinely foreign input broke it immediately.
+
+### 2026-09-22 - Closed the four blind spots, and lost a measurement doing it.
+
+The adversarial run had four classes that passed silently. Each fix is small,
+and each one is a check that should always have existed:
+
+- **Currency.** `currency` was parsed into `Order` and never read again. Any
+  order not in `SETTLEMENT_CURRENCY` is now `currency_mismatch`, checked before
+  anything else, because every later comparison assumes one unit.
+- **Duplicate bank credit.** The UTR join accepted a second line for a
+  settlement it had already claimed. Now the first line in statement order
+  claims the settlement and any later line with the same UTR is
+  `duplicate_bank_row`. Flagging the later one rather than the earlier one is a
+  choice: the first credit is the payout, the repeat is the surplus.
+- **Dangling settlement reference.** `settlement_id` was only ever used to
+  group rows, never checked to exist. A new transaction-level pass flags it.
+- **Refund fee.** The order-level pass stops at the first classification it
+  can give an order, so a refund row's own fee was never looked at. The same
+  transaction-level pass flags any fee on a refund, because the rule table has
+  none. That is a convention of this model, recorded as a limitation.
+
+The transaction pass skips any row tier 0 already reported, so a refund with
+both an arithmetic break and a fee is reported once, as the arithmetic break.
+The "every entity exactly once" test would have caught it otherwise.
+
+All nine reference and stress figures are unchanged. The unseen batch goes from
+15 to 26 of 26 flagged.
+
+The cost: I wrote these rules after seeing the defects. `08-unseen` can no
+longer show that the engine generalises to them, only that it still catches
+them. The test that used to pin them as blind spots now pins them as caught,
+and the grader test that needed silent records to exist now runs against a
+deliberately blinded engine instead. Measuring generalisation again means a new
+round of classes I have not looked at.
+
+### 2026-09-22 - Two unseen classes were caught under the wrong name.
+
+Split settlements and returned payouts were already flagged, but as
+`orphan_bank_credit`. Caught is not the same as useful: an analyst told
+"orphan" goes looking for a missing settlement, not a second instalment.
+
+Leftover credits are now tried against unclaimed settlements with the same
+bounded `subset_sum` the agent's tools use: two to four parts, all inside the
+payout window, summing exactly. That is recorded as `split_settlement`,
+resolved, because the money did arrive. A leftover debit that equals a payout
+credited in the previous week is `payout_reversal`, unresolved, because the
+settlement is reconciled but the money has gone. Both are tested with the near
+miss beside them: parts outside the window, parts off by one paisa, a debit a
+month later.
+
+### 2026-09-22 - The page promised a bypass the server did not honour.
+
+The rate-limit message said "supply your own key to bypass this". The global
+limit was checked before the key was read, so once the operator's hourly budget
+was spent a visitor with their own key was refused too. Operator-paid and
+visitor-paid requests now have separate budgets.
+
+Reading that code turned up a worse problem. A visitor's key was placed in
+`os.environ` and `get_provider()` was called, which builds the full failover
+chain. If the visitor's key failed, the chain fell through to whichever other
+providers the operator had configured, and the visitor's request was served on
+the operator's account. The key is now handed straight to one Anthropic client
+and the environment is never touched; a test spies on `os.environ` to prove it.
+
+### 2026-09-22 - Two limits that did not limit.
+
+The upload size check ran after `await f.read()`, which reads the whole body
+first. The limit protected the parser, not the process. Reads now stop one byte
+past the cap.
+
+The first version of the per-client limit keyed on the first entry of
+`X-Forwarded-For`. That entry is whatever the client sends, so anyone could
+reset their own limit by changing a header. It now uses the address uvicorn
+resolves with `--proxy-headers`, and a test sends a spoofed header.
+
+### 2026-09-22 - Two README figures had drifted from the code.
+
+Building the dashboard meant regenerating every figure from the code rather
+than copying it from the README, and two did not match.
+
+The compound-defect table said 92.3% at 82% density. The documented command
+now gives 91.9% at 85% and 81.5% when every record carries a defect. I ran it
+on the commit before this session's changes and got identical output, so the
+engine fixes did not cause it; the table was written against an earlier
+generator and never refreshed. I did not track down which change moved it.
+
+"Throughput flat from 141 to 5,022" was nearly true: roughly 230,000 to
+290,000 entities a second across that range, varying between runs, with a single noisy run
+once dipping to 153,000 at the largest size. The README now gives the range.
+
+Both are the same lesson as the answer-key entry: a number typed into a
+document is a snapshot of the code at one moment. The site now builds its
+figures from `scripts/build_site_data.py`, and CI asserts the ones that matter.
