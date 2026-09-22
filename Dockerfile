@@ -24,4 +24,7 @@ USER recon
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \
   CMD python -c "import urllib.request,os;urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\",\"8000\")}/health',timeout=4)"
-CMD ["sh", "-c", "python -m uvicorn app:app --app-dir src --host 0.0.0.0 --port ${PORT:-8000} --proxy-headers --forwarded-allow-ips='*'"]
+# No --forwarded-allow-ips: with '*' uvicorn takes the client-supplied leftmost
+# X-Forwarded-For entry. The app reads the proxy-appended one itself when
+# RECON_TRUST_PROXY is set (render.yaml sets it); see _client_id in src/app.py.
+CMD ["sh", "-c", "python -m uvicorn app:app --app-dir src --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -192,6 +192,25 @@ class TestLimits:
             client = type("C", (), {"host": "1.2.3.4"})()
         assert app_module._client_id(Req()) == "1.2.3.4"
 
+    def test_client_id_ignores_a_spoofed_forwarded_header(self, monkeypatch):
+        """
+        Behind a trusted proxy (RECON_TRUST_PROXY=1).
+        The leftmost X-Forwarded-For entry is whatever the client sent. Keying
+        the per-client limit on it let a client rotate a fake header for a
+        fresh quota each request; only the proxy-appended rightmost entry
+        counts.
+        """
+        class Req:
+            client = type("C", (), {"host": "10.0.0.1"})()
+            def __init__(self, fwd):
+                self.headers = {"x-forwarded-for": fwd} if fwd else {}
+
+        monkeypatch.setattr(app_module, "TRUST_PROXY", True)
+        real = "203.0.113.9"
+        assert app_module._client_id(Req(f"1.1.1.1, {real}")) == real
+        assert app_module._client_id(Req(f"9.9.9.9, {real}")) == real
+        assert app_module._client_id(Req(None)) == "10.0.0.1"
+
     def test_limiter_window_expires(self, monkeypatch):
         lim = app_module.SlidingWindowLimiter(1, window_s=10)
         now = [1000.0]

@@ -15,6 +15,10 @@ services:
     envVars:
       # Origins allowed to call the API from a browser. The GitHub Pages site
       # is the one that needs it.
+      # Render terminates TLS and appends the caller's address to
+      # X-Forwarded-For; per-client limits key on that appended entry.
+      - key: RECON_TRUST_PROXY
+        value: "1"
       - key: RECON_CORS_ORIGINS
         value: https://rahulpaul-07.github.io
       # Optional. With no key the model-backed endpoints say so plainly and

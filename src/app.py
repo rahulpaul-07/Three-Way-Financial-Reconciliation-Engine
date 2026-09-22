@@ -150,15 +150,28 @@ def _rate_limited() -> bool:
     return operator_limiter.hit("global")
 
 
+# Set on deployments that sit behind exactly one appending proxy (Render).
+# Off by default: without a proxy in front, every X-Forwarded-For entry,
+# rightmost included, comes from the client.
+TRUST_PROXY = os.environ.get("RECON_TRUST_PROXY", "").lower() in ("1", "true", "yes")
+
+
 def _client_id(request: Request) -> str:
     """
-    The caller's address, as the ASGI server resolved it.
+    The address a per-client limit is keyed on.
 
-    Deliberately not read from X-Forwarded-For here: that header's first entry
-    is whatever the client chose to send, so keying a limit on it lets anyone
-    reset their own limit per request. Behind a proxy, uvicorn's
-    --proxy-headers resolves the real address from the proxy's own entry.
+    Behind a proxy the socket peer is the proxy, so the real client is in
+    X-Forwarded-For -- but only the RIGHTMOST entry, the one the proxy itself
+    appended, can be trusted. Everything to its left arrived from the client.
+    An earlier version delegated this to uvicorn run with
+    --forwarded-allow-ips='*', which resolves to the LEFTMOST entry: a client
+    could rotate a fake header and get a fresh quota on every request.
     """
+    if TRUST_PROXY:
+        fwd = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",")
+               if h.strip()]
+        if fwd:
+            return fwd[-1]
     return request.client.host if request.client else "unknown"
 
 
