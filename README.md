@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions/workflows/tests.yml/badge.svg)](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions/workflows/tests.yml)
 [![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions)
-[![tests](https://img.shields.io/badge/tests-167%20passing-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-168%20passing-brightgreen)](tests/)
 [![accuracy](https://img.shields.io/badge/classification-100%25%20vs%20answer%20key-brightgreen)](#results)
 [![detection](https://img.shields.io/badge/unseen%20defects-26%2F26%20caught-brightgreen)](#results)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
@@ -45,7 +45,7 @@ reads.
 | Resolved | **90.8%** (95% CI 84.9-94.5%) |
 | Classification accuracy | **100.0%** across 14 classes |
 | Under compound defects | degrades to 91.9% at 85% defect density, 81.5% when every record is defective |
-| Tests | 167, verified by mutation |
+| Tests | 168; the original suite was verified by mutation, the tests added in this round were not |
 | Across 12 independent batches | 92.7% +/- 0.4% resolved, 100.0% +/- 0.0% accuracy |
 | Throughput | roughly 230,000-290,000 entities/sec from 141 to 5,022 entities (single runs), linear cost |
 | Unseen defect classes | 26/26 planted records flagged, 0 silent passes (was 15/26) |
@@ -88,7 +88,7 @@ python3 src/investigate.py --data data --json agent_traces.json
 python3 src/report.py --data data --traces agent_traces.json \
                       --qa qa_answers.json --out report.html
 python3 src/ask.py --data data --demo --json qa_answers.json
-python3 -m pytest tests/ -q                           # 167 tests
+python3 -m pytest tests/ -q                           # 168 tests
 python3 src/evaluate.py --stress --compound --seeds 3 # where it breaks
 ```
 
@@ -331,7 +331,7 @@ Every push runs four jobs, and a separate workflow publishes the dashboard to Gi
 
 | Job | What it proves |
 |---|---|
-| `test` | 167 tests pass on Python 3.10 through 3.13, with no provider SDK installed |
+| `test` | 168 tests pass on Python 3.10 through 3.13, with no provider SDK installed |
 | `reconcile` | a clean checkout generates, reconciles, grades and reports end to end, and no unseen defect class passes silently |
 | `web` | the site data builds from a clean checkout, the dashboard type-checks and builds, and the engine serves it |
 | `provider-degradation` | the engine reconciles correctly with **no** language model configured |
