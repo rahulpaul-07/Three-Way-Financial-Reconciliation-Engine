@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from taxonomy import AGENT_CLASSIFICATIONS  # noqa: E402
 from llm import Provider, get_provider  # noqa: E402
 from tools import TOOL_SCHEMA, InvestigationTools, build_dispatch  # noqa: E402
 
@@ -40,13 +41,8 @@ MAX_STEPS = 5
 # classification is rejected. This keeps agent output comparable against the
 # ground-truth answer key and prevents the model inventing categories that
 # cannot be graded.
-CLASSIFICATIONS = [
-    "fee_mismatch", "refund", "partial_refund", "chargeback", "duplicate",
-    "unsettled", "failed_payment", "missing_payment", "orphan_bank_credit",
-    "missing_bank_row", "rounding_noise", "net_arithmetic_error",
-    "settlement_total_mismatch", "settlement_not_in_bank", "amount_mismatch",
-    "method_mismatch", "ambiguous_match", "unexplained",
-]
+# Single source of truth: see taxonomy.py.
+CLASSIFICATIONS = AGENT_CLASSIFICATIONS
 
 SYSTEM_PROMPT = """You are a payments reconciliation analyst investigating a \
 single unresolved record.

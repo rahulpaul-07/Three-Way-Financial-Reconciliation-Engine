@@ -28,6 +28,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from evaluate import grade  # noqa: E402
 from matcher import Engine, load  # noqa: E402
+from taxonomy import REAL_BREAKS  # noqa: E402
 
 CSS = """
 *{box-sizing:border-box;margin:0;padding:0}
@@ -167,11 +168,7 @@ def bar_row(label: str, value: int, total: int, colour: str) -> str:
             f'font-variant-numeric:tabular-nums">{value}</span></div>')
 
 
-# Classes that mean money is genuinely missing or unaccounted for, as opposed
-# to differences the system can fully explain.
-REAL_BREAKS = {"missing_payment", "orphan_bank_credit", "missing_bank_row",
-               "settlement_not_in_bank", "settlement_total_mismatch",
-               "net_arithmetic_error", "amount_mismatch", "method_mismatch"}
+# Defined once in taxonomy.py.
 
 TIER_NAMES = {0: "self-consistency", 1: "exact key join",
               2: "deterministic inference", 3: "reference recovery"}
