@@ -23,7 +23,7 @@ export function Evidence({ meta }: { meta: Meta | null }) {
           <p className="mt-3 text-graphite">
             One good run proves little. These are measured across independently generated batches, under rising
             defect density, at scale, and against defects the engine was not designed around.
-            {meta && <> The test suite has {meta.tests} tests.</>}
+            {meta?.tests != null && <> The test suite has {meta.tests} tests.</>}
           </p>
         </div>
         {!b ? <Skeleton className="mt-10 h-96 w-full" /> : (

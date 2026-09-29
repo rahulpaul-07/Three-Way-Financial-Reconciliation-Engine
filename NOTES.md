@@ -775,6 +775,13 @@ out 50 short and was published. `build_site_data.py` now refuses to count
 unless FastAPI is importable, and both workflows install the pinned
 `requirements-dev.txt`.
 
+The first version of that guard broke the Render deploy. Render's build
+installs only the runtime requirements and then builds the site data, so with
+no pytest to count with, the new check stopped the build and Render kept
+serving the previous commit. A missing pytest now records the count as
+unknown and the page leaves the sentence out; a missing FastAPI, which is what
+produced the wrong number, still stops the build.
+
 Linting turned up a quieter version of the same problem: four provider classes
 in `llm.py` assigned `models` twice, and the second list silently replaced the
 first. Behaviour was right; the dead lines are gone, and `ruff` now runs in CI.

@@ -62,7 +62,7 @@ def git_sha() -> str:
         return "unknown"
 
 
-def test_count() -> int:
+def test_count() -> int | None:
     """
     The number of tests the site states, counted by collecting the suite.
 
@@ -71,8 +71,16 @@ def test_count() -> int:
     published site said 119 tests while the suite had 169. A module skipped
     that way leaves no trace in the collection summary, so the dependency is
     checked directly.
+
+    Without pytest there is nothing to count, and None is recorded rather
+    than a number: the page then leaves the sentence out. Render's build
+    installs only the runtime requirements, and failing there took the
+    deploy down with it.
     """
     import importlib.util
+    if importlib.util.find_spec("pytest") is None:
+        print("  pytest is not installed; the test count is left out")
+        return None
     if importlib.util.find_spec("fastapi") is None:
         raise SystemExit("test count would omit the web-layer tests: "
                          "install requirements-web.txt first")

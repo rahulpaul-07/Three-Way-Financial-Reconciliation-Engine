@@ -73,7 +73,7 @@ export interface DatasetInfo {
 }
 
 export interface Meta {
-  generated_at: string; commit: string; tests: number; datasets: DatasetInfo[];
+  generated_at: string; commit: string; tests: number | null; datasets: DatasetInfo[];
   headline: {
     resolution_rate: number; accuracy: number; exceptions: number; entities: number;
     throughput: number; variance_mean: number; detection: string;
