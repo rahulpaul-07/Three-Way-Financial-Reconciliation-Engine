@@ -36,6 +36,7 @@ afterwards. Entries are in the order they happened.
 - **2026-09-29** — One investigation froze the whole server.
 - **2026-09-29** — Four gaps in the public endpoints.
 - **2026-09-29** — The site said 119 tests; there were 169.
+- **2026-09-30** — The redesign's animations cost more than the redesign.
 
 The entries worth reading first, if reading only three:
 
@@ -785,3 +786,25 @@ produced the wrong number, still stops the build.
 Linting turned up a quieter version of the same problem: four provider classes
 in `llm.py` assigned `models` twice, and the second list silently replaced the
 first. Behaviour was right; the dead lines are gone, and `ruff` now runs in CI.
+
+### 2026-09-30 - The redesign's animations cost more than the redesign.
+
+The page was restructured into numbered sections with tabs, and given motion
+adapted from Magic UI and 21st.dev. The first build of it scored 59 to 92 on
+Lighthouse's mobile profile, with 630 to 810 ms of blocking time against 60 to
+90 before. Two causes, found by measuring each in turn rather than guessing:
+
+- **Blur on everything hidden.** The scroll reveal hid each section as
+  `opacity: 0; filter: blur(6px)`. A blur filter on every below-the-fold
+  section at once cost about 300 ms at load. The hidden state is now opacity
+  and position only, and the blur is a short animation on the element being
+  revealed. Same look, 110 to 130 ms.
+- **Beams nobody could see.** The eight flow beams ran for ever, repainting
+  every frame from the moment the page loaded, though the diagram is below the
+  fold. They now pause while off screen.
+
+Measuring also turned up an error that had been live since the prerender went
+in. `renderToString` cannot wait for a lazy component, so the evidence section
+was written out as a Suspense fallback, and on every load the browser
+discarded it and re-rendered it, logging React error #419. The placeholder is
+now rendered directly until hydration has finished.

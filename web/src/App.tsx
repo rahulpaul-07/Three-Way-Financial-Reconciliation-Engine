@@ -3,11 +3,13 @@ import { snapshot } from "@/lib/api";
 import type { Run } from "@/lib/types";
 import { useData } from "@/hooks/use-data";
 import { useEngine } from "@/hooks/use-engine";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { NavBar } from "@/sections/nav";
 import { Hero } from "@/sections/hero";
 import { Workbench } from "@/sections/workbench";
 import { AgentSection } from "@/sections/agent";
 import { HowItWorks } from "@/sections/how";
+import { Principles } from "@/sections/principles";
 import { Footer } from "@/sections/footer";
 import { Skeleton } from "@/components/ui/panel";
 
@@ -23,6 +25,7 @@ export default function App() {
   const [run, setRun] = useState<Run | null>(null);
   const current = run ?? reference.data;
   const onRun = useCallback((r: Run) => setRun(r), []);
+  const hydrated = useHydrated();
 
   return (
     <>
@@ -32,12 +35,17 @@ export default function App() {
       <NavBar engine={engine} />
       <main>
         <Hero reference={reference.data} meta={meta.data} />
+        {/* Read in the order a reviewer asks: what it does, try it, is it
+            right, where the model fits, and why it is built this way. */}
+        <HowItWorks run={reference.data} />
         <Workbench engine={engine} meta={meta.data} run={current} onRun={onRun} />
-        <Suspense fallback={<SectionPlaceholder id="evidence" />}>
-          <Evidence meta={meta.data} />
-        </Suspense>
+        {hydrated ? (
+          <Suspense fallback={<SectionPlaceholder id="evidence" />}>
+            <Evidence meta={meta.data} />
+          </Suspense>
+        ) : <SectionPlaceholder id="evidence" />}
         <AgentSection engine={engine} />
-        <HowItWorks run={current} />
+        <Principles />
       </main>
       <Footer meta={meta.data} />
     </>
@@ -48,7 +56,7 @@ export default function App() {
 function SectionPlaceholder({ id }: { id: string }) {
   return (
     <section id={id} className="border-b border-rule">
-      <div className="mx-auto max-w-page px-5 py-16 sm:px-8 lg:py-20">
+      <div className="mx-auto max-w-page px-5 py-20 sm:px-8 lg:py-28">
         <Skeleton className="h-[40rem] w-full" />
       </div>
     </section>

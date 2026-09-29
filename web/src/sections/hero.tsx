@@ -41,7 +41,11 @@ export function Hero({ reference, meta }: { reference: Run | null; meta: Meta | 
       <LedgerBackdrop />
       <div className="relative mx-auto grid max-w-page gap-12 px-5 pb-16 pt-12 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-14 lg:pb-24 lg:pt-20">
         <div className="max-w-xl">
-          <h1 className="text-display font-medium">Three systems record every sale. They never agree.</h1>
+          <p className="mb-6 flex items-center gap-3 font-mono text-xs uppercase tracking-[0.14em] text-graphite">
+            <span aria-hidden className="h-px w-8 bg-tick" />
+            Three-way payment reconciliation
+          </p>
+          <h1 className="text-display text-balance font-medium">Three systems record every sale. They never agree.</h1>
           <p className="mt-6 max-w-prose text-lg leading-relaxed text-graphite">
             The merchant's ledger has the order amount. The payment gateway has it less its fee.
             The bank has one netted credit a day or two later, covering dozens of orders, with no line items.

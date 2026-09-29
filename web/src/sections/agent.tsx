@@ -1,4 +1,5 @@
-import { Loader2 } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
+import { Loader2, RotateCcw } from "lucide-react";
 import { useMemo, useState } from "react";
 import { live, snapshot, type AskResponse, type InvestigateResponse } from "@/lib/api";
 import { cn, human } from "@/lib/utils";
@@ -6,12 +7,18 @@ import type { EngineState } from "@/hooks/use-engine";
 import { useData } from "@/hooks/use-data";
 import { Button } from "@/components/ui/button";
 import { Panel, Skeleton } from "@/components/ui/panel";
+import { BlurFade } from "@/components/ui/blur-fade";
+import { SectionHeader } from "@/components/ui/section-header";
+import { Tabs, TabPanel } from "@/components/ui/tabs";
 import type { Health } from "@/lib/api";
 
 export function AgentSection({ engine }: { engine: { state: EngineState; health: Health | null } }) {
   const traces = useData(snapshot.traces);
   const reference = useData(() => snapshot.dataset("01-reference"));
   const [pick, setPick] = useState(0);
+  const [replay, setReplay] = useState(0);
+  const [tab, setTab] = useState<"recorded" | "live">("recorded");
+  const reduce = useReducedMotion();
 
   const matcher = useMemo(() => new Map(reference.data?.resolutions.map((r) => [r.entity_id, r.classification]) ?? []), [reference.data]);
   const stats = useMemo(() => {
@@ -24,31 +31,36 @@ export function AgentSection({ engine }: { engine: { state: EngineState; health:
 
   return (
     <section id="agent" className="border-b border-rule">
-      <div className="mx-auto max-w-page px-5 py-16 sm:px-8 lg:py-20">
-        <div className="max-w-prose">
-          <h2 className="text-3xl font-medium">The agent proposes; code decides</h2>
-          <p className="mt-3 text-graphite">
-            Records the deterministic tiers cannot close go to a bounded agent. It chooses which of nine investigation tools to call,
-            at most five rounds per record, and must cite a tool result for any claim. It performs no arithmetic. If it invents a class
-            outside the taxonomy it is downgraded, and if it claims a resolution without evidence it is overruled. A model failure turns an
-            exception into an escalation, never into a wrong number.
-          </p>
-        </div>
+      <div className="mx-auto max-w-page px-5 py-20 sm:px-8 lg:py-28">
+        <SectionHeader folio="04" eyebrow="The agent" title="The model proposes; code decides.">
+          Records the deterministic tiers cannot close go to a bounded agent. It chooses which of nine investigation tools to call,
+          at most five rounds per record, and must cite a tool result for any claim. It does no arithmetic. An invented class is
+          downgraded, an unevidenced resolution is overruled, and a model failure becomes an escalation, never a wrong number.
+        </SectionHeader>
 
         {stats.length > 0 && (
-          <dl className="totals mt-8 grid grid-cols-2 gap-6 py-5 sm:grid-cols-4">
-            {stats.map((s) => (
-              <div key={s.label}>
-                <dt className="text-sm text-graphite">{s.label}</dt>
-                <dd className="num mt-1 font-serif text-[1.75rem] leading-none">{s.value}</dd>
-                <dd className="mt-2 text-xs text-graphite">{s.note}</dd>
-              </div>
-            ))}
-          </dl>
+          <BlurFade>
+            <dl className="totals mt-12 grid grid-cols-2 gap-6 py-5 sm:grid-cols-4">
+              {stats.map((s) => (
+                <div key={s.label}>
+                  <dt className="text-sm text-graphite">{s.label}</dt>
+                  <dd className="num mt-1 font-serif text-[1.75rem] leading-none">{s.value}</dd>
+                  <dd className="mt-2 text-xs text-graphite">{s.note}</dd>
+                </div>
+              ))}
+            </dl>
+          </BlurFade>
         )}
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
-          <Panel title="Recorded investigations" className="lg:max-h-[36rem] lg:overflow-y-auto">
+        <Tabs className="mt-10" label="Agent views" idBase="agent" value={tab} onChange={setTab}
+          items={[
+            { value: "recorded", label: "Recorded investigations", count: traces.data?.traces.length },
+            { value: "live", label: "Run it live" },
+          ]} />
+        <TabPanel idBase="agent" value={tab} className="pt-6">
+        {tab === "live" ? <LivePanel engine={engine} /> : (
+        <div className="grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
+          <Panel title="Records" className="lg:max-h-[36rem] lg:overflow-y-auto">
             {!traces.data ? <Skeleton className="h-64" /> : (
               <ul className="space-y-1" aria-label="Investigated records">
                 {traces.data.traces.map((tr, i) => {
@@ -78,17 +90,33 @@ export function AgentSection({ engine }: { engine: { state: EngineState; health:
                   <span className={cn(t.flag.includes("disagree") ? "text-pencil" : "text-ink")}>{human(t.label)}</span>
                   {t.flag.includes("disagree") ? ". They disagree, and the engine's answer stands; the disagreement is kept for a person to read." : ", independently."}
                 </p>
-                <ol className="space-y-2">
-                  {t.steps.map((s) => (
-                    <li key={s.n} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2">
-                      <span className="num text-graphite">{s.n}</span>
-                      <div>
-                        <code className="break-all font-mono text-[0.8rem] text-tick">{s.call}</code>
-                        <div className="text-graphite">{s.result}</div>
-                      </div>
-                    </li>
-                  ))}
-                </ol>
+                {/* The agent's rounds arrive one after another, in the order it
+                    made them (after Magic UI's Animated List). Keyed on the
+                    record and a replay counter, so choosing a record or pressing
+                    replay plays its investigation again from the first call. */}
+                <div className="rounded-md border border-rule bg-paper">
+                  <div className="flex items-center justify-between border-b border-rule px-3 py-2 text-xs text-graphite">
+                    <span className="font-mono uppercase tracking-[0.12em]">Trace</span>
+                    <button onClick={() => setReplay((n) => n + 1)}
+                      className="inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-ink/[0.05] hover:text-ink">
+                      <RotateCcw size={12} aria-hidden /> Replay
+                    </button>
+                  </div>
+                  <ol key={`${t.entity_id}-${replay}`} className="space-y-3 px-3 py-3">
+                    {t.steps.map((s, i) => (
+                      <motion.li key={s.n} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2"
+                        initial={reduce ? false : { opacity: 0, y: 8, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ type: "spring", stiffness: 350, damping: 40, delay: i * 0.45 }}>
+                        <span className="num text-graphite">{s.n}</span>
+                        <div>
+                          <code className="break-all font-mono text-[0.8rem] text-tick">{s.call}</code>
+                          <div className="text-graphite">{s.result}</div>
+                        </div>
+                      </motion.li>
+                    ))}
+                  </ol>
+                </div>
                 <div>
                   <h4 className="font-serif text-base font-medium">Conclusion</h4>
                   <p className="mt-1 max-w-prose leading-relaxed">{t.conclusion}</p>
@@ -103,8 +131,8 @@ export function AgentSection({ engine }: { engine: { state: EngineState; health:
             )}
           </Panel>
         </div>
-
-        <LivePanel engine={engine} />
+        )}
+        </TabPanel>
       </div>
     </section>
   );
@@ -126,7 +154,7 @@ function LivePanel({ engine }: { engine: { state: EngineState; health: Health | 
   }
 
   return (
-    <Panel className="mt-6" title="Run it yourself"
+    <Panel title="Run it yourself"
       note="These call a language model on the sample batch. Your key, if you give one, is sent with that one request, used by a single client and never stored or logged. Requests on the server's key are rate limited.">
       <div className="grid gap-5 lg:grid-cols-2">
         <div>

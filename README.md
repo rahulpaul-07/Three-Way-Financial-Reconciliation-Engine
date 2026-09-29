@@ -301,6 +301,22 @@ about the reconciliation: every figure comes from the engine's JSON output, and
 the recorded snapshots it falls back to (`web/public/data/`) are produced by
 `python3 scripts/build_site_data.py`, which runs the engine and the evaluator.
 
+**Layout.** One page in five numbered sections, in the order a reviewer asks
+the questions: how it works (a flow diagram of the four files through the
+matcher to the four outcomes, then the tier cascade), the workbench (the run
+view split into Overview, Day by day, Exceptions and Graded tabs), the evidence
+(a bento grid of the measurements), the agent (recorded traces that replay step
+by step, and a tab to run it live), and the principles.
+
+The motion is adapted from [Magic UI](https://magicui.design) (Animated Beam,
+Border Beam, Blur Fade, Animated List, Bento Grid) and the tab pattern from
+[21st.dev](https://21st.dev)'s Animated Tabs, ported to Tailwind 3 and
+framer-motion and restyled in the ledger palette. Each animation carries
+meaning: beams show a record's direction of travel, the border beam runs only
+while the engine is working on a request, the trace replays in the order the
+agent made its calls. All of it stops under `prefers-reduced-motion`, and the
+beams pause when off screen.
+
 **Load time.** The production build prerenders the page into `index.html`
 (`web/src/entry-server.tsx`, `web/scripts/prerender.mjs`), so the opening text
 paints from the HTML before any JavaScript has run, and React hydrates it
@@ -308,13 +324,16 @@ afterwards. The chart sections are loaded with `import()`, which keeps recharts
 and d3 (about 100 kB gzipped) off the path to the first paint. Measured with
 Lighthouse's mobile profile against the same local server, three runs each:
 
-| | Before | After |
-|---|---|---|
-| Performance score | 83 | 95 |
-| First contentful paint | 3.2 s | 2.4 s |
-| Largest contentful paint | 3.4 s | 2.4 s |
-| Total blocking time | 160-180 ms | 60-90 ms |
-| JavaScript before first paint (gzipped) | 218 kB | 109 kB |
+| | Before | Prerendered | Redesigned |
+|---|---|---|---|
+| Performance score | 83 | 95 | 93-94 |
+| First contentful paint | 3.2 s | 2.4 s | 2.4 s |
+| Largest contentful paint | 3.4 s | 2.4 s | 2.4 s |
+| Total blocking time | 160-180 ms | 60-90 ms | 110-130 ms |
+| JavaScript before first paint (gzipped) | 218 kB | 109 kB | 111 kB |
+
+Lighthouse's accessibility score is 100. The live site scored 88 before the
+agent trace list stopped misusing listbox roles.
 
 **The JSON API** is versioned under `/api/v1`, with OpenAPI docs at `/api/docs`:
 
@@ -463,7 +482,7 @@ web/                  React dashboard (Vite, TypeScript, Tailwind)
 including a section on what it deliberately does not do.
 
 `DECISIONS.md` - fourteen design decisions, each with the alternative rejected.
-`NOTES.md` - thirty-one entries logging what broke during the build and how each was
+`NOTES.md` - thirty-two entries logging what broke during the build and how each was
 resolved, written as they happened rather than reconstructed afterwards.
 Includes the case where the agent's investigation exposed a weakness in the
 answer key itself.

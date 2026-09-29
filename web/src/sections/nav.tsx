@@ -1,5 +1,6 @@
 import { motion, useScroll, useSpring } from "framer-motion";
 import { Github } from "lucide-react";
+import { useEffect, useState } from "react";
 import type { Engine, EngineState } from "@/hooks/use-engine";
 import { cn } from "@/lib/utils";
 import { REPO } from "./links";
@@ -11,10 +12,53 @@ const STATUS: Record<EngineState, { text: string; dot: string; title: string }> 
   offline: { text: "Recorded data", dot: "bg-graphite", title: "The live engine is unreachable, so the page shows recorded runs" },
 };
 
+const LINKS = [
+  { id: "how", label: "How it works" },
+  { id: "workbench", label: "Workbench" },
+  { id: "evidence", label: "Evidence" },
+  { id: "agent", label: "Agent" },
+  { id: "principles", label: "Principles" },
+];
+
+/**
+ * The section being read: the last one whose top has passed under the
+ * header. Looked up by id on each check rather than held, because sections
+ * mount late (the evidence chunk loads lazily and replaces its placeholder).
+ */
+function useActiveSection(ids: string[]) {
+  const [active, setActive] = useState<string | null>(null);
+  useEffect(() => {
+    let frame = 0;
+    const check = () => {
+      frame = 0;
+      const line = 120; // a little below the 56px header
+      let current: string | null = null;
+      for (const id of ids) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top <= line) current = id;
+      }
+      setActive(current);
+    };
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(check); };
+    check();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [ids]);
+  return active;
+}
+
+const IDS = LINKS.map((l) => l.id);
+
 export function NavBar({ engine }: { engine: Engine }) {
   // How far down the ledger you are, drawn as a rule under the header.
   const { scrollYProgress } = useScroll();
   const progress = useSpring(scrollYProgress, { stiffness: 120, damping: 30, mass: 0.3 });
+  const active = useActiveSection(IDS);
   const s = STATUS[engine.state];
   const seconds = Math.round(engine.waitedMs / 1000);
   return (
@@ -29,14 +73,22 @@ export function NavBar({ engine }: { engine: Engine }) {
           <span className="hidden sm:inline">Three-way reconciliation</span>
           <span className="sm:hidden">Recon</span>
         </a>
-        <div className="ml-auto hidden items-center gap-5 text-sm text-graphite md:flex">
-          <a className="hover:text-ink" href="#workbench">Workbench</a>
-          <a className="hover:text-ink" href="#evidence">Evidence</a>
-          <a className="hover:text-ink" href="#agent">Agent</a>
-          <a className="hover:text-ink" href="#how">How it works</a>
+        <div className="ml-auto hidden items-center gap-1 text-sm lg:flex">
+          {LINKS.map((l) => (
+            <a key={l.id} href={`#${l.id}`} aria-current={active === l.id ? "location" : undefined}
+              className={cn("relative rounded px-2.5 py-1.5 transition-colors",
+                active === l.id ? "text-ink" : "text-graphite hover:text-ink")}>
+              {l.label}
+              {active === l.id && (
+                <motion.span layoutId="nav-active" aria-hidden
+                  className="absolute inset-x-2.5 -bottom-[0.6rem] h-0.5 rounded-full bg-tick"
+                  transition={{ type: "spring", stiffness: 500, damping: 40 }} />
+              )}
+            </a>
+          ))}
         </div>
         <span title={s.title} aria-live="polite"
-          className="ml-auto flex items-center gap-2 text-xs text-graphite md:ml-0">
+          className="ml-auto flex items-center gap-2 rounded-full border border-rule px-2.5 py-1 text-xs text-graphite lg:ml-2">
           <span className={cn("h-2 w-2 rounded-full", s.dot)} aria-hidden />
           {s.text}
           {engine.state === "waking" && seconds > 2 && <span className="num">{seconds}s</span>}

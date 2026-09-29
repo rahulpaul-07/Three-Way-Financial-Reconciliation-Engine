@@ -4,6 +4,9 @@ import type { Benchmarks, Meta } from "@/lib/types";
 import { cn, human, int, pct } from "@/lib/utils";
 import { useData } from "@/hooks/use-data";
 import { Panel, Skeleton } from "@/components/ui/panel";
+import { BlurFade } from "@/components/ui/blur-fade";
+import { SectionHeader } from "@/components/ui/section-header";
+import { REPO } from "./links";
 
 const axis = { fontSize: 11, fill: "rgb(var(--graphite))" };
 const grid = <CartesianGrid stroke="rgb(var(--rule))" strokeOpacity={0.6} vertical={false} />;
@@ -17,25 +20,49 @@ export function Evidence({ meta }: { meta: Meta | null }) {
   const b = bench.data;
   return (
     <section id="evidence" className="border-b border-rule">
-      <div className="mx-auto max-w-page px-5 py-16 sm:px-8 lg:py-20">
-        <div className="max-w-prose">
-          <h2 className="text-3xl font-medium">Evidence</h2>
-          <p className="mt-3 text-graphite">
-            One good run proves little. These are measured across independently generated batches, under rising
-            defect density, at scale, and against defects the engine was not designed around.
-            {meta?.tests != null && <> The test suite has {meta.tests} tests.</>}
-          </p>
-        </div>
-        {!b ? <Skeleton className="mt-10 h-96 w-full" /> : (
-          <div className="mt-10 grid gap-6 lg:grid-cols-2">
-            <Variance b={b} />
-            <Degradation b={b} />
-            <BlindSpots b={b} />
-            <Throughput b={b} />
+      <div className="mx-auto max-w-page px-5 py-20 sm:px-8 lg:py-28">
+        <SectionHeader folio="03" eyebrow="Evidence" title="One good run proves little.">
+          These are measured across independently generated batches, under rising defect density, at scale, and against
+          defects the engine was not designed around.
+        </SectionHeader>
+        {!b ? <Skeleton className="mt-12 h-96 w-full" /> : (
+          // A bento grid, after Magic UI's (magicui.design/docs/components/bento-grid):
+          // tiles sized by how much each chart needs to say.
+          <div className="mt-12 grid auto-rows-auto gap-4 lg:grid-cols-6">
+            <BlurFade className="lg:col-span-4"><Variance b={b} /></BlurFade>
+            <BlurFade className="lg:col-span-2" delay={0.06}><Facts meta={meta} b={b} /></BlurFade>
+            <BlurFade className="lg:col-span-3"><Degradation b={b} /></BlurFade>
+            <BlurFade className="lg:col-span-3" delay={0.06}><Throughput b={b} /></BlurFade>
+            <BlurFade className="lg:col-span-6"><BlindSpots b={b} /></BlurFade>
           </div>
         )}
       </div>
     </section>
+  );
+}
+
+/** What the suite and CI check, with the commit the figures were built from. */
+function Facts({ meta, b }: { meta: Meta | null; b: Benchmarks }) {
+  const rows: [string, string][] = [
+    ["Tests", meta?.tests != null ? int(meta.tests) : "–"],
+    ["Batches measured", int(b.variance.length)],
+    ["Python versions in CI", "3.10–3.13"],
+  ];
+  return (
+    <Panel className="flex h-full flex-col" title="Checked on every push">
+      <dl className="space-y-4">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex items-baseline justify-between gap-4 border-b border-rule/60 pb-3">
+            <dt className="text-sm text-graphite">{k}</dt>
+            <dd className="num whitespace-nowrap font-serif text-2xl">{v}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-auto pt-4 text-sm text-graphite">
+        CI fails if classification accuracy moves or any unseen defect class passes silently.
+        {meta && <> Figures built from commit <a className="font-mono text-xs underline decoration-rule underline-offset-2 hover:text-ink" href={`${REPO}/commit/${meta.commit}`}>{meta.commit}</a>.</>}
+      </p>
+    </Panel>
   );
 }
 
@@ -46,7 +73,7 @@ function Variance({ b }: { b: Benchmarks }) {
   const allPerfect = b.variance.every((v) => v.accuracy === 1);
   const data = b.variance.map((v) => ({ seed: v.seed, rate: +(v.resolution_rate * 100).toFixed(2) }));
   return (
-    <Panel title={`${b.variance.length} batches, different data, same answer`}
+    <Panel className="h-full" title={`${b.variance.length} batches, different data, same answer`}
       note={<>Resolution rate {pct(mean)} ± {pct(sd)} across seeds. Classification accuracy was {allPerfect ? "100% on every one" : "not perfect on every seed"}.
         The spread comes from how many captures happen to fall after the last payout, which are correctly left unsettled.</>}>
       <div className="h-56">
@@ -55,7 +82,8 @@ function Variance({ b }: { b: Benchmarks }) {
             {grid}
             <XAxis dataKey="seed" type="number" name="Seed" tick={axis} tickLine={false} domain={[0, b.variance.length + 1]} allowDecimals={false}
               label={{ value: "seed", position: "insideBottomRight", offset: -2, fontSize: 11, fill: "rgb(var(--graphite))" }} />
-            <YAxis dataKey="rate" type="number" name="Resolved" unit="%" tick={axis} tickLine={false} axisLine={false} width={48}
+            <YAxis dataKey="rate" type="number" name="Resolved" unit="%" tick={axis} tickLine={false} axisLine={false} width={56}
+              tickFormatter={(v: number) => v.toFixed(1)}
               domain={[(dataMin: number) => Math.floor(dataMin - 1), (dataMax: number) => Math.ceil(dataMax + 1)]} />
             <ZAxis range={[60, 60]} />
             <ReferenceLine y={+(mean * 100).toFixed(2)} stroke="rgb(var(--graphite))" strokeDasharray="4 3" />
@@ -82,7 +110,7 @@ function Degradation({ b }: { b: Benchmarks }) {
   }));
   const worst = b.stress_compound[b.stress_compound.length - 1];
   return (
-    <Panel title="Where it breaks"
+    <Panel className="h-full" title="Where it breaks"
       note={<>More defects of the same kinds change nothing: each record is classified on its own. Defects that land on the same record do degrade it,
         to {pct(worst.accuracy)} at {pct(worst.defect_rate, 0)} density, because the taxonomy allows one label per record and some records have two.</>}>
       <div className="h-56">
@@ -115,7 +143,7 @@ function Throughput({ b }: { b: Benchmarks }) {
   const rates = b.throughput.map((t) => t.entities_per_second);
   const lo = Math.min(...rates), hi = Math.max(...rates);
   return (
-    <Panel title="Speed at scale"
+    <Panel className="h-full" title="Speed at scale"
       note={<>Thousands of entities reconciled per second, by batch size: between {int(lo / 1000)}k and {int(hi / 1000)}k here, so cost grows
         roughly linearly with the batch. The largest, {int(last.entities)} entities, took {(last.reconcile_seconds * 1000).toFixed(0)} ms.
         These are single timings on the build machine and vary from run to run; they are not a controlled benchmark.</>}>
@@ -139,14 +167,14 @@ function BlindSpots({ b }: { b: Benchmarks }) {
   const { before, after } = b.detection;
   const classes = Object.keys(after.by_class).sort();
   return (
-    <Panel title="Blind spots, found and closed"
+    <Panel className="h-full" title="Blind spots, found and closed"
       note={<>An adversarial generator planted nine defect classes the engine had no rule for. Before, four passed silently; the duplicate bank credit reconciled the same money twice
         without a flag. Each now has a rule and a test. Because the rules were written after seeing these defects, this batch no longer measures generalisation for them; that needs a fresh round of unseen classes.</>}>
       <div className="grid grid-cols-2 gap-4 text-sm">
         <Stat label={`Before (${before.commit})`} value={`${before.detected} of ${before.total}`} tone="text-redink" />
         <Stat label="Now" value={`${after.detected} of ${after.total}`} tone="text-tick" />
       </div>
-      <ul className="mt-4 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+      <ul className="mt-4 grid gap-x-8 gap-y-1 text-sm sm:grid-cols-2 lg:grid-cols-3">
         {classes.map((c) => {
           const was = before.silent_classes.includes(c);
           return (

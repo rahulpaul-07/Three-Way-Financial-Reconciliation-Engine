@@ -59,4 +59,17 @@
   .totals { border-top: 1px solid rgb(var(--ink) / 0.8); border-bottom: 3px double rgb(var(--ink) / 0.8); }
   .num { font-variant-numeric: tabular-nums lining-nums; }
   .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Scroll reveal (components/ui/blur-fade.tsx). Hidden only when a script
+     has marked the page (html.js) and the reader allows motion, so the
+     prerendered page is fully visible without JavaScript.
+     The blur is an animation on the element being revealed, not part of the
+     hidden state: a blur filter on every hidden section at once cost around
+     300 ms of main-thread time at load (Lighthouse, mobile profile). */
+  .blur-fade { transition: opacity 0.7s ease-out, transform 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
+  @media (prefers-reduced-motion: no-preference) {
+    html.js .blur-fade:not([data-shown]) { opacity: 0; transform: translateY(12px); }
+    html.js .blur-fade[data-shown] { animation: blur-in 0.7s ease-out; }
+  }
+  @keyframes blur-in { from { filter: blur(6px); } to { filter: blur(0); } }
 }

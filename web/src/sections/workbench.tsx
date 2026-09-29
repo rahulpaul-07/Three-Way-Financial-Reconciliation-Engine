@@ -5,7 +5,9 @@ import type { Meta, Run } from "@/lib/types";
 import { cn, int, pct } from "@/lib/utils";
 import type { Engine } from "@/hooks/use-engine";
 import { Button } from "@/components/ui/button";
-import { Segmented } from "@/components/ui/segmented";
+import { Tabs } from "@/components/ui/tabs";
+import { BorderBeam } from "@/components/ui/border-beam";
+import { SectionHeader } from "@/components/ui/section-header";
 import { Skeleton } from "@/components/ui/panel";
 import { blob } from "./links";
 
@@ -45,25 +47,23 @@ export function Workbench({ engine, meta, run, onRun }: {
 
   return (
     <section id="workbench" className="border-b border-rule">
-      <div className="mx-auto max-w-page px-5 py-16 sm:px-8 lg:py-20">
-        <div className="max-w-prose">
-          <h2 className="text-3xl font-medium">Workbench</h2>
-          <p className="mt-3 text-graphite">
-            Pick a batch, generate one, or upload your own three files. Every chart and table below
-            comes from the engine's output for that batch; nothing is computed in the browser except layout.
-          </p>
-        </div>
+      <div className="mx-auto max-w-page px-5 py-20 sm:px-8 lg:py-28">
+        <SectionHeader folio="02" eyebrow="Workbench" title="Run it on a batch of your choosing.">
+          Pick a bundled batch, generate one with the defect rate you want, or upload your own three files. Every chart and
+          table below is the engine's output for that batch; the browser only lays it out.
+        </SectionHeader>
 
-        <div className="mt-8">
-          <Segmented label="Data source" value={mode} onChange={(m) => { setMode(m); setError(null); }}
-            options={[
+        <div className="mt-12">
+          <Tabs variant="pill" label="Data source" idBase="source" value={mode}
+            onChange={(m) => { setMode(m); setError(null); }}
+            items={[
               { value: "recorded", label: "Sample batches" },
               { value: "generate", label: "Generate a batch" },
               { value: "upload", label: "Upload your CSVs" },
             ]} />
         </div>
 
-        <div className="mt-6">
+        <div role="tabpanel" id={`source-panel-${mode}`} aria-labelledby={`source-tab-${mode}`} className="mt-6">
           {mode === "recorded" && (
             <DatasetList meta={meta} current={run?.source} busy={busy}
               onPick={(name) => go(name, () => (isLive ? live.dataset(name).catch(() => snapshot.dataset(name)) : snapshot.dataset(name)))} />
@@ -85,12 +85,17 @@ export function Workbench({ engine, meta, run, onRun }: {
           )}
         </div>
 
-        <div id="run" className="mt-12 scroll-mt-20">
-          {run ? (
-            <Suspense fallback={<Skeleton className="h-96 w-full" />}>
-              <RunView run={run} meta={meta} />
-            </Suspense>
-          ) : <Skeleton className="h-96 w-full" />}
+        {/* The beam runs only while the engine is working on a request. */}
+        <div id="run" aria-busy={!!busy}
+          className="relative -mx-3 mt-11 scroll-mt-20 rounded-xl border border-transparent p-3 sm:-mx-4 sm:p-4">
+          {busy && <BorderBeam />}
+          <div className={cn("transition-opacity duration-300", busy && "opacity-50")}>
+            {run ? (
+              <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+                <RunView run={run} meta={meta} />
+              </Suspense>
+            ) : <Skeleton className="h-96 w-full" />}
+          </div>
         </div>
       </div>
     </section>
