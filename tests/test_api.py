@@ -230,6 +230,128 @@ class TestLimits:
         now[0] += 11
         assert not lim.hit("a")
 
+    def test_the_original_html_routes_share_the_engine_limit(self, client,
+                                                             monkeypatch):
+        """
+        `/sample` spawns the generator and `/reconcile` runs the engine, the
+        same work as their /api/v1 twins. They were unlimited, so the cap on
+        the JSON API could be sidestepped by calling the older route.
+        """
+        monkeypatch.setattr(app_module, "engine_limiter",
+                            app_module.SlidingWindowLimiter(1))
+        assert client.post("/api/v1/datasets/01-reference").status_code == 200
+        assert client.post("/sample").status_code == 429
+        r = client.post("/reconcile", files=_files(REF))
+        assert r.status_code == 429
+
+    def test_a_failed_sample_does_not_leak_paths(self, client, monkeypatch):
+        def boom():
+            raise RuntimeError(r"C:\\secret\\path\\python.exe exited 1")
+        monkeypatch.setattr(app_module, "_sample_batch", boom)
+        r = client.post("/sample")
+        assert r.status_code == 500
+        assert "secret" not in r.text and "python" not in r.text
+
+    @pytest.mark.parametrize("body", ["[1, 2]", '"text"', '{"question": 5}',
+                                      "null"])
+    def test_a_malformed_json_question_is_a_400_not_a_crash(self, client,
+                                                             body):
+        r = client.post("/api/v1/ask", content=body,
+                        headers={"content-type": "application/json"})
+        assert r.status_code == 400
+        assert r.json()["detail"] == "No question supplied."
+
+    def test_an_oversized_body_is_refused_before_it_is_parsed(self, client):
+        """
+        Declared too large: refused on the header alone, and the refusal
+        still carries the CORS header so the Pages site can show the reason.
+        """
+        limit = app_module.UPLOAD_FIELDS * app_module.MAX_BYTES + 64 * 1024
+        r = client.post("/api/v1/reconcile", content=b"x",
+                        headers={"content-length": str(limit + 1),
+                                 "content-type": "multipart/form-data; b=x",
+                                 "origin": "https://rahulpaul-07.github.io"})
+        assert r.status_code == 413
+        assert r.headers["access-control-allow-origin"] == \
+            "https://rahulpaul-07.github.io"
+
+    def test_an_undeclared_body_is_counted_as_it_arrives(self):
+        """A chunked body declares no length; the bytes are counted instead."""
+        import asyncio
+
+        async def inner(scope, receive, send):
+            while (await receive()).get("more_body"):
+                pass
+            await send({"type": "http.response.start", "status": 200,
+                        "headers": []})
+            await send({"type": "http.response.body", "body": b"ok"})
+
+        mw = app_module.BodySizeLimit(inner, max_bytes=10)
+        chunks = [{"type": "http.request", "body": b"x" * 6, "more_body": True}
+                  for _ in range(3)]
+        sent = []
+
+        async def receive():
+            return chunks.pop(0)
+
+        async def send(message):
+            sent.append(message)
+
+        asyncio.run(mw({"type": "http", "headers": []}, receive, send))
+        assert sent[0]["status"] == 413
+
+    def test_a_slow_model_call_does_not_stall_other_requests(self,
+                                                             monkeypatch):
+        """
+        The model-backed handlers are async, and the agent's calls block. Run
+        on the event loop, one investigation froze the instance for its whole
+        duration: every other visitor, and the health check, waited behind it.
+        """
+        import asyncio
+        import time as _time
+
+        httpx2 = pytest.importorskip("httpx2")
+
+        class Fake:
+            available, name = True, "fake"
+
+        def slow(workdir, provider):
+            _time.sleep(1.5)
+            return []
+
+        monkeypatch.setattr(app_module, "_provider_for", lambda key: Fake())
+        monkeypatch.setattr(app_module, "_investigate_dir", slow)
+        monkeypatch.setattr(app_module, "_sample_batch",
+                            lambda: Path(app_module.tempfile.mkdtemp()))
+
+        async def scenario():
+            transport = httpx2.ASGITransport(app=app_module.app)
+            async with httpx2.AsyncClient(transport=transport,
+                                          base_url="http://t") as c:
+                slow_call = asyncio.create_task(
+                    c.post("/api/v1/investigate", json={}))
+                # Timed from before the pause: a blocked loop delays the
+                # pause itself, not only the request after it.
+                t0 = _time.perf_counter()
+                await asyncio.sleep(0.2)
+                health = await c.get("/health")
+                waited = _time.perf_counter() - t0
+                return (await slow_call).status_code, health.status_code, waited
+
+        slow_status, health_status, waited = asyncio.run(scenario())
+        assert slow_status == 200 and health_status == 200
+        assert waited < 1.0, f"health answered after {waited:.2f}s, behind the agent"
+
+    def test_limits_are_configurable_and_validated(self, monkeypatch):
+        monkeypatch.setenv("RECON_TEST_LIMIT", "17")
+        assert app_module._env_int("RECON_TEST_LIMIT", 5) == 17
+        monkeypatch.delenv("RECON_TEST_LIMIT")
+        assert app_module._env_int("RECON_TEST_LIMIT", 5) == 5
+        for bad in ("abc", "0", "-3"):
+            monkeypatch.setenv("RECON_TEST_LIMIT", bad)
+            with pytest.raises(SystemExit):
+                app_module._env_int("RECON_TEST_LIMIT", 5)
+
     def test_a_visitor_key_never_touches_the_environment(self, monkeypatch):
         import os
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)

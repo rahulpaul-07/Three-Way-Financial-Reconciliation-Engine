@@ -28,8 +28,8 @@ is deleted when the request completes. Nothing is stored.
 
 from __future__ import annotations
 
+import functools
 import os
-import re
 import shutil
 import sys
 import tempfile
@@ -43,6 +43,7 @@ from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from starlette.concurrency import run_in_threadpool
 
 SRC = Path(__file__).resolve().parent
 sys.path.insert(0, str(SRC))
@@ -58,6 +59,97 @@ DATASETS = ROOT / "datasets"
 # Node toolchain having run.
 WEB_DIST = Path(os.environ.get("RECON_WEB_DIST", ROOT / "web" / "dist"))
 
+
+def _env_int(name: str, default: int) -> int:
+    """A positive integer setting from the environment, or the default."""
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise SystemExit(f"{name} must be an integer, got {raw!r}") from None
+    if value <= 0:
+        raise SystemExit(f"{name} must be positive, got {value}")
+    return value
+
+
+MAX_BYTES = 8 * 1024 * 1024          # a 5,000-order batch is well under 1 MB
+REQUIRED = ("ledger", "gateway", "bank")
+UPLOAD_FIELDS = 5                    # ledger, gateway, bank, settlements, truth
+
+# Caps on the model-backed endpoints. These exist because the endpoints are
+# public and the cost is the operator's. Deliberately tight: the point is to
+# demonstrate the agent, not to offer a free reconciliation service.
+AGENT_MAX_RECORDS = 3
+RATE_LIMIT_PER_HOUR = _env_int("RECON_MODEL_LIMIT_PER_HOUR", 60)
+VISITOR_LIMIT_PER_HOUR = _env_int("RECON_VISITOR_LIMIT_PER_HOUR", 30)
+ENGINE_LIMIT_PER_HOUR = _env_int("RECON_ENGINE_LIMIT_PER_HOUR", 240)
+
+
+class _BodyTooLarge(Exception):
+    pass
+
+
+class BodySizeLimit:
+    """
+    Refuse a request body larger than `max_bytes` before it is parsed.
+
+    The per-file check in `_read_bounded` runs inside the handler, and by then
+    the multipart parser has already received and spooled the whole body. This
+    rejects on the declared Content-Length up front, and counts the bytes of a
+    body that declares none (chunked), so an oversized upload costs the server
+    at most `max_bytes` of reading however it is sent.
+    """
+
+    def __init__(self, app, max_bytes: int):
+        self.app, self.max_bytes = app, max_bytes
+
+    async def _refuse(self, send) -> None:
+        body = (b'{"detail":"request body is larger than '
+                + str(self.max_bytes // 1024 // 1024).encode() + b' MB"}')
+        await send({"type": "http.response.start", "status": 413,
+                    "headers": [(b"content-type", b"application/json"),
+                                (b"content-length", str(len(body)).encode())]})
+        await send({"type": "http.response.body", "body": body})
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+
+        declared = dict(scope.get("headers") or []).get(b"content-length")
+        if declared is not None:
+            try:
+                too_big = int(declared) > self.max_bytes
+            except ValueError:
+                too_big = True
+            if too_big:
+                return await self._refuse(send)
+
+        seen, started = 0, False
+
+        async def counted_receive():
+            nonlocal seen
+            message = await receive()
+            if message["type"] == "http.request":
+                seen += len(message.get("body", b""))
+                if seen > self.max_bytes:
+                    raise _BodyTooLarge
+            return message
+
+        async def tracked_send(message):
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, counted_receive, tracked_send)
+        except _BodyTooLarge:
+            if not started:
+                await self._refuse(send)
+
+
 app = FastAPI(
     title="Three-way reconciliation",
     version="2.0.0",
@@ -65,6 +157,10 @@ app = FastAPI(
                  "bank statement. The deterministic endpoints need no API key."),
     docs_url="/api/docs", redoc_url=None, openapi_url="/api/openapi.json",
 )
+# Registered first so it sits inside CORS and the security headers: a 413
+# must still carry the CORS header, or the Pages site cannot read the reason.
+app.add_middleware(BodySizeLimit,
+                   max_bytes=UPLOAD_FIELDS * MAX_BYTES + 64 * 1024)
 app.add_middleware(GZipMiddleware, minimum_size=2048)
 
 # The static site on GitHub Pages calls this API cross-origin. Only the origins
@@ -90,15 +186,6 @@ async def security_headers(request: Request, call_next):
     if request.url.path.startswith("/api/"):
         h.setdefault("Cache-Control", "no-store")
     return response
-
-MAX_BYTES = 8 * 1024 * 1024          # a 5,000-order batch is well under 1 MB
-REQUIRED = ("ledger", "gateway", "bank")
-
-# Caps on the model-backed endpoints. These exist because the endpoints are
-# public and the cost is the operator's. Deliberately tight: the point is to
-# demonstrate the agent, not to offer a free reconciliation service.
-AGENT_MAX_RECORDS = 3
-RATE_LIMIT_PER_HOUR = 60
 
 class SlidingWindowLimiter:
     """
@@ -136,10 +223,12 @@ class SlidingWindowLimiter:
 # this split it was untrue: the global check ran first, so a visitor with a
 # key was refused once the operator's quota was gone.
 operator_limiter = SlidingWindowLimiter(RATE_LIMIT_PER_HOUR)
-visitor_limiter = SlidingWindowLimiter(30)
+visitor_limiter = SlidingWindowLimiter(VISITOR_LIMIT_PER_HOUR)
 # The deterministic endpoints cost CPU, not money. A generous per-client cap
-# keeps one client from monopolising a free-tier instance.
-engine_limiter = SlidingWindowLimiter(240)
+# keeps one client from monopolising a free-tier instance. Every endpoint that
+# runs the engine or spawns the generator shares it, the original HTML routes
+# included.
+engine_limiter = SlidingWindowLimiter(ENGINE_LIMIT_PER_HOUR)
 
 # Kept for compatibility with callers and tests written against the original
 # single-list limiter.
@@ -247,7 +336,7 @@ reason.</div>
 <div class="stats">
   <div class="stat"><div class="n">90.8%</div><div class="l">resolved</div></div>
   <div class="stat"><div class="n">100%</div><div class="l">classification accuracy</div></div>
-  <div class="stat"><div class="n">168</div><div class="l">tests, Python 3.10&ndash;3.13</div></div>
+  <div class="stat"><div class="n">179</div><div class="l">tests, Python 3.10&ndash;3.13</div></div>
   <div class="stat"><div class="n">7</div><div class="l">providers, scoped failover</div></div>
 </div>
 <div class="statnote">Measured on the reference batch against a ground-truth
@@ -490,9 +579,10 @@ async def _read_bounded(f) -> bytes | None:
     """
     Read an upload, refusing it once it passes MAX_BYTES.
 
-    `await f.read()` with no argument pulls the whole body into memory before
-    the size is known, so the limit protected the parser but not the process.
-    Reading one byte past the limit is enough to know it was exceeded.
+    This is the per-file limit, reported against the file that broke it.
+    The request as a whole is bounded earlier, by `BodySizeLimit`, before the
+    multipart parser has read anything. Reading one byte past the limit is
+    enough to know it was exceeded.
     """
     data = await f.read(MAX_BYTES + 1)
     return None if len(data) > MAX_BYTES else data
@@ -537,7 +627,7 @@ def _reconcile_dir(workdir: Path) -> str:
 
 
 @app.post("/sample", response_class=HTMLResponse)
-def sample() -> HTMLResponse:
+def sample(request: Request) -> HTMLResponse:
     """
     Reconcile a freshly generated batch.
 
@@ -545,30 +635,34 @@ def sample() -> HTMLResponse:
     batch is generated per request rather than served from disk, so the numbers
     are produced live rather than recalled.
     """
-    import subprocess
-
-    tmp = Path(tempfile.mkdtemp(prefix="recon-sample-"))
+    if (limited := _engine_limited(request)):
+        return limited
+    tmp: Path | None = None
     try:
-        subprocess.run(
-            [sys.executable, str(SRC / "generate_data.py"),
-             "--seed", "42", "--orders", "120", "--out", str(tmp)],
-            check=True, capture_output=True, timeout=60)
+        tmp = _sample_batch()
         return HTMLResponse(_reconcile_dir(tmp))
-    except Exception as exc:                              # noqa: BLE001
+    except Exception:                                     # noqa: BLE001
+        # The exception names the interpreter and temporary paths; it goes to
+        # the log, and the visitor gets a message that exposes neither.
+        print(traceback.format_exc(limit=3), file=sys.stderr)
         return JSONResponse(status_code=500,
-                            content={"detail": f"sample failed: {exc}"})
+                            content={"detail": "sample generation failed"})
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        if tmp is not None:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
 @app.post("/reconcile", response_class=HTMLResponse)
 async def reconcile(
+    request: Request,
     ledger: UploadFile = File(...),
     gateway: UploadFile = File(...),
     bank: UploadFile = File(...),
     settlements: UploadFile | None = File(None),
     ground_truth: UploadFile | None = File(None),
 ) -> HTMLResponse:
+    if (limited := _engine_limited(request)):
+        return limited
     tmp = Path(tempfile.mkdtemp(prefix="recon-"))
     try:
         uploads = {"ledger": ledger, "gateway": gateway, "bank": bank,
@@ -590,7 +684,7 @@ async def reconcile(
             (tmp / f"{name}.csv").write_bytes(data)
 
         _write_stubs(tmp)
-        return HTMLResponse(_reconcile_dir(tmp))
+        return HTMLResponse(await run_in_threadpool(_reconcile_dir, tmp))
 
     except KeyError as exc:
         # Most likely cause by far: a column the engine needs is absent.
@@ -617,12 +711,17 @@ async def reconcile(
 # --------------------------------------------------------------------------
 
 def _sample_batch() -> Path:
+    """Generate the seed-42 reference batch into a new temporary directory."""
     import subprocess
-    tmp = Path(tempfile.mkdtemp(prefix="recon-ai-"))
-    subprocess.run(
-        [sys.executable, str(SRC / "generate_data.py"),
-         "--seed", "42", "--orders", "120", "--out", str(tmp)],
-        check=True, capture_output=True, timeout=60)
+    tmp = Path(tempfile.mkdtemp(prefix="recon-sample-"))
+    try:
+        subprocess.run(
+            [sys.executable, str(SRC / "generate_data.py"),
+             "--seed", "42", "--orders", "120", "--out", str(tmp)],
+            check=True, capture_output=True, timeout=60)
+    except BaseException:
+        shutil.rmtree(tmp, ignore_errors=True)
+        raise
     return tmp
 
 
@@ -648,7 +747,10 @@ async def _read_request(request: Request) -> tuple[str, Path | None, str | None]
             body = await request.json()
         except Exception:                                 # noqa: BLE001
             body = {}
-        return (body.get("question") or "").strip(), None, None
+        # Anything but an object with a string question is treated as no
+        # question, which the caller turns into a 400 rather than a 500.
+        question = body.get("question") if isinstance(body, dict) else None
+        return (question.strip() if isinstance(question, str) else ""), None, None
 
     form = await request.form()
     question = str(form.get("question") or "").strip()
@@ -706,6 +808,58 @@ async def _read_request(request: Request) -> tuple[str, Path | None, str | None]
         raise
 
 
+def _investigate_dir(workdir: Path, provider) -> list[dict]:
+    """Reconcile a batch and run the agent over its first unresolved records."""
+    from agent import ResolutionAgent, build_context
+    from investigate import facts_for
+    from tools import InvestigationTools
+
+    orders, txns, settlements, bank = load(workdir)
+    resolutions = Engine(orders, txns, settlements, bank).run()
+    unresolved = [r for r in resolutions if not r.resolved][:AGENT_MAX_RECORDS]
+
+    agent = ResolutionAgent(InvestigationTools(orders, txns, settlements, bank),
+                            provider=provider)
+    out = []
+    for r in unresolved:
+        ctx = build_context(r.entity_id, r.entity_type, r.detail,
+                            facts_for(r, orders, txns, settlements, bank))
+        a = agent.investigate(r.entity_id, r.entity_type, ctx)
+        out.append({
+            "entity_id": a.entity_id,
+            "matcher_said": r.classification,
+            "agent_said": a.classification,
+            "agreed": a.classification == r.classification,
+            "reasoning": a.reasoning,
+            "analyst_note": a.analyst_note,
+            "terminated": a.terminated,
+            "steps": [{"n": s.n, "tool": s.tool, "input": s.tool_input,
+                       "ok": s.ok, "summary": s.summary} for s in a.steps],
+        })
+    return out
+
+
+def _ask_dir(workdir: Path, provider, question: str):
+    """Reconcile a batch and answer one question about it."""
+    from ask import QAAgent, QueryTools
+
+    orders, txns, settlements, bank = load(workdir)
+    resolutions = Engine(orders, txns, settlements, bank).run()
+    tools = QueryTools(orders, txns, settlements, bank, resolutions)
+    return QAAgent(tools, provider=provider).ask(question)
+
+
+def _rate_limit_response(visitor_key: str | None) -> JSONResponse:
+    if visitor_key:
+        detail = (f"Rate limit reached ({VISITOR_LIMIT_PER_HOUR}/hour per "
+                  f"client, even with your own key).")
+    else:
+        detail = (f"Rate limit reached ({RATE_LIMIT_PER_HOUR}/hour). The "
+                  f"model-backed endpoints are capped because the cost is "
+                  f"the operator's. Supply your own key to bypass this.")
+    return JSONResponse(status_code=429, content={"detail": detail})
+
+
 @app.post("/investigate")
 async def investigate(request: Request) -> JSONResponse:
     """
@@ -717,10 +871,7 @@ async def investigate(request: Request) -> JSONResponse:
     """
     key = request.headers.get("x-api-key") or None
     if _model_rate_limited(request, key):
-        return JSONResponse(status_code=429, content={
-            "detail": f"Rate limit reached ({RATE_LIMIT_PER_HOUR}/hour). The "
-                      f"model-backed endpoints are capped because the cost is "
-                      f"the operator's. Supply your own key to bypass this."})
+        return _rate_limit_response(key)
 
     provider = _provider_for(key)
     if not provider.available:
@@ -734,35 +885,12 @@ async def investigate(request: Request) -> JSONResponse:
     if err:
         return JSONResponse(status_code=400, content={"detail": err})
 
-    tmp = updir or _sample_batch()
+    tmp = updir or await run_in_threadpool(_sample_batch)
     try:
-        from agent import ResolutionAgent, build_context
-        from investigate import facts_for
-        from tools import InvestigationTools
-
-        orders, txns, settlements, bank = load(tmp)
-        resolutions = Engine(orders, txns, settlements, bank).run()
-        unresolved = [r for r in resolutions
-                      if not r.resolved][:AGENT_MAX_RECORDS]
-
-        agent = ResolutionAgent(InvestigationTools(orders, txns, settlements,
-                                                   bank), provider=provider)
-        out = []
-        for r in unresolved:
-            ctx = build_context(r.entity_id, r.entity_type, r.detail,
-                                facts_for(r, orders, txns, settlements, bank))
-            a = agent.investigate(r.entity_id, r.entity_type, ctx)
-            out.append({
-                "entity_id": a.entity_id,
-                "matcher_said": r.classification,
-                "agent_said": a.classification,
-                "agreed": a.classification == r.classification,
-                "reasoning": a.reasoning,
-                "analyst_note": a.analyst_note,
-                "terminated": a.terminated,
-                "steps": [{"n": s.n, "tool": s.tool, "input": s.tool_input,
-                           "ok": s.ok, "summary": s.summary} for s in a.steps],
-            })
+        # Model calls block for seconds each. Run off the event loop, or one
+        # investigation stalls every other request on the instance, health
+        # checks included.
+        out = await run_in_threadpool(_investigate_dir, tmp, provider)
         return JSONResponse({"provider": getattr(provider, "name", "?"),
                              "capped_at": AGENT_MAX_RECORDS,
                              "source": "your files" if updir else "sample batch",
@@ -782,9 +910,7 @@ async def ask(request: Request) -> JSONResponse:
     """Answer one plain-English question about the sample batch."""
     key = request.headers.get("x-api-key") or None
     if _model_rate_limited(request, key):
-        return JSONResponse(status_code=429, content={
-            "detail": f"Rate limit reached ({RATE_LIMIT_PER_HOUR}/hour). "
-                      f"Supply your own key to bypass this."})
+        return _rate_limit_response(key)
 
     question, updir, err = await _read_request(request)
     if err:
@@ -805,14 +931,9 @@ async def ask(request: Request) -> JSONResponse:
                       "on the server, or paste a key above — used for this "
                       "request only, never stored."})
 
-    tmp = updir or _sample_batch()
+    tmp = updir or await run_in_threadpool(_sample_batch)
     try:
-        from ask import QAAgent, QueryTools
-
-        orders, txns, settlements, bank = load(tmp)
-        resolutions = Engine(orders, txns, settlements, bank).run()
-        tools = QueryTools(orders, txns, settlements, bank, resolutions)
-        a = QAAgent(tools, provider=provider).ask(question)
+        a = await run_in_threadpool(_ask_dir, tmp, provider, question)
         return JSONResponse({
             "question": a.question, "answer": a.text, "error": a.error,
             "tools_used": a.tools_used, "model_calls": a.model_calls,
@@ -863,11 +984,22 @@ def _analyse_or_error(workdir: Path, source: str) -> JSONResponse:
                       "could not complete."})
 
 
+@functools.lru_cache(maxsize=1)
+def _model_configured() -> bool:
+    """
+    Whether a provider is configured. Keys come from the environment, which
+    does not change while the process runs, so this is resolved once rather
+    than on every probe: the page and uptime monitors call health constantly,
+    and building the provider chain is the slowest thing it did.
+    """
+    from llm import get_provider
+    return bool(get_provider().available)
+
+
 @app.get("/api/v1/health", tags=["meta"])
 def api_health() -> dict:
-    from llm import get_provider
     return {"status": "ok", "version": app.version, "model_required": False,
-            "model_configured": bool(get_provider().available)}
+            "model_configured": _model_configured()}
 
 
 @app.get("/api/v1/taxonomy", tags=["meta"])
@@ -928,13 +1060,17 @@ async def api_sample(request: Request) -> JSONResponse:
                str(scale), "--out", str(tmp)]
         if body.get("compound"):
             cmd.append("--compound")
-        subprocess.run(cmd, check=True, capture_output=True, timeout=60)
+        # Blocking work runs in the thread pool: the generator is a separate
+        # process and the engine is CPU-bound, and neither should hold the
+        # event loop while other visitors wait.
+        await run_in_threadpool(subprocess.run, cmd, check=True,
+                                capture_output=True, timeout=60)
         label = f"Generated batch, seed {seed}, {orders} orders"
         if scale != 1.0:
             label += f", defects x{scale:g}"
         if body.get("compound"):
             label += ", compound"
-        return _analyse_or_error(tmp, source=label)
+        return await run_in_threadpool(_analyse_or_error, tmp, label)
     except Exception:                                     # noqa: BLE001
         print(traceback.format_exc(limit=3), file=sys.stderr)
         return JSONResponse(status_code=500,
@@ -974,7 +1110,7 @@ async def api_reconcile(
                 continue
             (tmp / f"{name}.csv").write_bytes(data)
         _write_stubs(tmp)
-        return _analyse_or_error(tmp, source="Your upload")
+        return await run_in_threadpool(_analyse_or_error, tmp, "Your upload")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
