@@ -7,3 +7,7 @@ web/node_modules
 web/dist
 *.log
 .env
+web/dist-ssr
+.venv
+.ruff_cache
+.pytest_cache

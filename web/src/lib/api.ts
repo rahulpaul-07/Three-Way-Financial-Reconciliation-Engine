@@ -31,12 +31,26 @@ async function request<T>(url: string, init?: RequestInit, timeoutMs = 45_000): 
 }
 
 // ---- recorded snapshots (always available) --------------------------------
+// Snapshots are static files, so each is fetched once per page and shared:
+// several sections read the reference batch, and each used to download it
+// again. A failed fetch is dropped from the cache so a retry can succeed.
+const cache = new Map<string, Promise<unknown>>();
+function once<T>(url: string): Promise<T> {
+  let p = cache.get(url) as Promise<T> | undefined;
+  if (!p) {
+    p = request<T>(url);
+    cache.set(url, p);
+    p.catch(() => cache.delete(url));
+  }
+  return p;
+}
+
 export const snapshot = {
-  meta: () => request<Meta>(`${DATA}/meta.json`),
-  benchmarks: () => request<Benchmarks>(`${DATA}/benchmarks.json`),
-  taxonomy: () => request<{ classes: TaxonomyClass[] }>(`${DATA}/taxonomy.json`),
-  traces: () => request<Traces>(`${DATA}/agent_traces.json`),
-  dataset: (name: string) => request<Run>(`${DATA}/datasets/${name}.json`),
+  meta: () => once<Meta>(`${DATA}/meta.json`),
+  benchmarks: () => once<Benchmarks>(`${DATA}/benchmarks.json`),
+  taxonomy: () => once<{ classes: TaxonomyClass[] }>(`${DATA}/taxonomy.json`),
+  traces: () => once<Traces>(`${DATA}/agent_traces.json`),
+  dataset: (name: string) => once<Run>(`${DATA}/datasets/${name}.json`),
 };
 
 // ---- live engine -----------------------------------------------------------

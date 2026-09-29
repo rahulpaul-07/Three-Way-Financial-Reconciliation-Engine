@@ -23,4 +23,5 @@ data_amb/
 # Web dashboard
 web/node_modules/
 web/dist/
+web/dist-ssr/
 *.tsbuildinfo

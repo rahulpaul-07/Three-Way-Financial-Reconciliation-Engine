@@ -1,5 +1,5 @@
 import { Loader2, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { live, snapshot } from "@/lib/api";
 import type { Meta, Run } from "@/lib/types";
 import { cn, int, pct } from "@/lib/utils";
@@ -7,8 +7,11 @@ import type { Engine } from "@/hooks/use-engine";
 import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
 import { Skeleton } from "@/components/ui/panel";
-import { RunView } from "@/sections/run/run-view";
 import { blob } from "./links";
+
+// The run view draws with recharts and d3-sankey. Split out so the opening
+// of the page paints before either library has been downloaded and parsed.
+const RunView = lazy(() => import("@/sections/run/run-view").then((m) => ({ default: m.RunView })));
 
 type Mode = "recorded" | "generate" | "upload";
 
@@ -83,7 +86,11 @@ export function Workbench({ engine, meta, run, onRun }: {
         </div>
 
         <div id="run" className="mt-12 scroll-mt-20">
-          {run ? <RunView run={run} meta={meta} /> : <Skeleton className="h-96 w-full" />}
+          {run ? (
+            <Suspense fallback={<Skeleton className="h-96 w-full" />}>
+              <RunView run={run} meta={meta} />
+            </Suspense>
+          ) : <Skeleton className="h-96 w-full" />}
         </div>
       </div>
     </section>

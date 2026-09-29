@@ -15,17 +15,10 @@ export default defineConfig({
   build: {
     sourcemap: false,
     chunkSizeWarningLimit: 700,
-    rollupOptions: {
-      output: {
-        // Rollup 4 (Vite 8) takes manualChunks as a function. Charts and the
-        // animation library are split out because neither is needed until the
-        // reader scrolls past the opening.
-        manualChunks(id: string) {
-          if (id.includes("node_modules/recharts") || id.includes("node_modules/d3-")) return "charts";
-          if (id.includes("node_modules/framer-motion") || id.includes("node_modules/motion-")) return "motion";
-          return undefined;
-        },
-      },
-    },
+    // No manualChunks. The chart sections are loaded with dynamic import()
+    // (App.tsx, workbench.tsx), so recharts and d3 land in their own chunks
+    // without help. A hand-made "charts" chunk had absorbed small helpers the
+    // entry also used, which made the entry import it, and Vite then
+    // preloaded all 110 kB gzipped of chart code before the first paint.
   },
 });

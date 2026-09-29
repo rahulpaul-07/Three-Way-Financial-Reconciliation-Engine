@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { lazy, Suspense, useCallback, useState } from "react";
 import { snapshot } from "@/lib/api";
 import type { Run } from "@/lib/types";
 import { useData } from "@/hooks/use-data";
@@ -6,10 +6,15 @@ import { useEngine } from "@/hooks/use-engine";
 import { NavBar } from "@/sections/nav";
 import { Hero } from "@/sections/hero";
 import { Workbench } from "@/sections/workbench";
-import { Evidence } from "@/sections/evidence";
 import { AgentSection } from "@/sections/agent";
 import { HowItWorks } from "@/sections/how";
 import { Footer } from "@/sections/footer";
+import { Skeleton } from "@/components/ui/panel";
+
+// The evidence charts are the only thing on the page that needs recharts at
+// the top level, and they sit below the fold. Loading them as a separate
+// chunk keeps the chart library off the path to the first paint.
+const Evidence = lazy(() => import("@/sections/evidence").then((m) => ({ default: m.Evidence })));
 
 export default function App() {
   const engine = useEngine();
@@ -28,11 +33,24 @@ export default function App() {
       <main>
         <Hero reference={reference.data} meta={meta.data} />
         <Workbench engine={engine} meta={meta.data} run={current} onRun={onRun} />
-        <Evidence meta={meta.data} />
+        <Suspense fallback={<SectionPlaceholder id="evidence" />}>
+          <Evidence meta={meta.data} />
+        </Suspense>
         <AgentSection engine={engine} />
         <HowItWorks run={current} />
       </main>
       <Footer meta={meta.data} />
     </>
+  );
+}
+
+/** Holds the anchor and roughly the height while a lazy section loads. */
+function SectionPlaceholder({ id }: { id: string }) {
+  return (
+    <section id={id} className="border-b border-rule">
+      <div className="mx-auto max-w-page px-5 py-16 sm:px-8 lg:py-20">
+        <Skeleton className="h-[40rem] w-full" />
+      </div>
+    </section>
   );
 }

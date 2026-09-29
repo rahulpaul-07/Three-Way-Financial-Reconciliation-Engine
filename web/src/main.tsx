@@ -1,5 +1,5 @@
 import { StrictMode } from "react";
-import { createRoot } from "react-dom/client";
+import { createRoot, hydrateRoot } from "react-dom/client";
 import "@fontsource/spectral/400.css";
 import "@fontsource/spectral/500.css";
 import "@fontsource/spectral/600.css";
@@ -11,8 +11,14 @@ import "@fontsource/ibm-plex-mono/400.css";
 import "./index.css";
 import App from "./App";
 
-createRoot(document.getElementById("root")!).render(
+const root = document.getElementById("root")!;
+const app = (
   <StrictMode>
     <App />
-  </StrictMode>,
+  </StrictMode>
 );
+
+// The production build prerenders the page into #root (scripts/prerender.mjs),
+// so the first paint does not wait for this bundle. The dev server does not.
+if (root.hasChildNodes()) hydrateRoot(root, app);
+else createRoot(root).render(app);

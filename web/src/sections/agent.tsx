@@ -50,12 +50,12 @@ export function AgentSection({ engine }: { engine: { state: EngineState; health:
         <div className="mt-8 grid gap-6 lg:grid-cols-[18rem_minmax(0,1fr)]">
           <Panel title="Recorded investigations" className="lg:max-h-[36rem] lg:overflow-y-auto">
             {!traces.data ? <Skeleton className="h-64" /> : (
-              <ul className="space-y-1" role="listbox" aria-label="Investigated records">
+              <ul className="space-y-1" aria-label="Investigated records">
                 {traces.data.traces.map((tr, i) => {
                   const disagree = tr.flag.includes("disagree");
                   return (
                     <li key={tr.entity_id}>
-                      <button role="option" aria-selected={i === pick} onClick={() => setPick(i)}
+                      <button aria-pressed={i === pick} onClick={() => setPick(i)}
                         className={cn("w-full rounded px-3 py-2 text-left text-sm", i === pick ? "bg-ink text-paper" : "hover:bg-ink/[0.05]")}>
                         <span className="font-mono text-[0.8rem]">{tr.entity_id}</span>
                         <span className={cn("block text-xs", i === pick ? "text-paper/80" : disagree ? "text-pencil" : "text-graphite")}>
