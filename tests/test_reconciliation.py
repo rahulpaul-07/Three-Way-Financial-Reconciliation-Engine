@@ -21,7 +21,6 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
 from agent import CLASSIFICATIONS, AgentResult, ResolutionAgent  # noqa: E402
-from core import paise_to_rupees_str, rupees_to_paise  # noqa: E402
 from llm import FallbackChain, LLMResponse, Provider, classify_failure  # noqa: E402
 from matcher import Engine, load  # noqa: E402
 from narration import Proposal, propose_by_regex, verify  # noqa: E402
@@ -379,7 +378,11 @@ class TestFailover:
 # --------------------------------------------------------------------------
 
 from assignment import (  # noqa: E402
-    IMPOSSIBLE, greedy, hungarian, pair_cost, total_cost,
+    IMPOSSIBLE,
+    greedy,
+    hungarian,
+    pair_cost,
+    total_cost,
 )
 
 

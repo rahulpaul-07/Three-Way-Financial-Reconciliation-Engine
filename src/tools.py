@@ -13,15 +13,19 @@ the model contributes investigative strategy, the code contributes truth.
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from itertools import combinations
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from core import (  # noqa: E402
-    FEE_TOLERANCE_PAISE, expected_fee, paise_to_rupees_str, working_day_window,
+    FEE_TOLERANCE_PAISE,
+    expected_fee,
+    paise_to_rupees_str,
+    working_day_window,
 )
 
 
@@ -254,12 +258,12 @@ class InvestigationTools:
                   if x.settlement_id == settlement_id), None)
         if s is None:
             return self._record(ToolResult(
-                "check_payout_window", False, f"no such settlement"))
+                "check_payout_window", False, "no such settlement"))
         try:
             observed = date.fromisoformat(observed_date)
         except ValueError:
             return self._record(ToolResult(
-                "check_payout_window", False, f"invalid date"))
+                "check_payout_window", False, "invalid date"))
         lo, hi = working_day_window(s.capture_date)
         ok = lo <= observed <= hi
         return self._record(ToolResult(

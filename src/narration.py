@@ -22,7 +22,6 @@ Run with --no-verify to demonstrate what the verification gate prevents.
 
 from __future__ import annotations
 
-import os
 import re
 import sys
 from dataclasses import dataclass
@@ -32,7 +31,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from core import paise_to_rupees_str, working_day_window  # noqa: E402
 from llm import get_provider  # noqa: E402
-
 
 # --------------------------------------------------------------------------
 # Stage A: deterministic extraction

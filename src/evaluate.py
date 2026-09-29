@@ -36,7 +36,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from matcher import Engine, load  # noqa: E402
 
-
 # --------------------------------------------------------------------------
 # Statistics
 # --------------------------------------------------------------------------
@@ -347,7 +346,7 @@ def cohens_kappa(a: list[str], b: list[str]) -> float:
     if not a or len(a) != len(b):
         return 0.0
     n = len(a)
-    observed = sum(1 for x, y in zip(a, b) if x == y) / n
+    observed = sum(1 for x, y in zip(a, b, strict=True) if x == y) / n
 
     labels = set(a) | set(b)
     expected = sum((a.count(l) / n) * (b.count(l) / n) for l in labels)

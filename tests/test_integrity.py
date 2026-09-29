@@ -202,6 +202,7 @@ def test_every_class_the_engine_can_emit_is_in_the_taxonomy():
     silently downgraded by the agent and mis-grouped by the report.
     """
     import re
+
     from taxonomy import AGENT_CLASSIFICATIONS, TAXONOMY
     src = (Path(__file__).resolve().parent.parent / "src" / "matcher.py").read_text()
     emitted = set(re.findall(r'classification="([a-z_]+)"', src))

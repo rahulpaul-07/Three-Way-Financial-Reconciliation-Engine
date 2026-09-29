@@ -383,7 +383,7 @@ def build(datadir: Path, outfile: Path, traces_path: Path | None = None,
             agreed_one = t.get("agreed")
             cls = "" if agreed_one else "disagree"
             badge = "" if agreed_one else (
-                f'<span class="tag break">disagreed</span>')
+                '<span class="tag break">disagreed</span>')
             parts.append(
                 f'<details class="{cls}"><summary>'
                 f'<span class="id">{e(t["entity_id"])}</span>'

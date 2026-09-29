@@ -33,12 +33,15 @@ import random
 import sys
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from core import (  # noqa: E402
-    GST_RATE, add_working_days, expected_fee, paise_to_rupees_str,
+    GST_RATE,
+    add_working_days,
+    expected_fee,
+    paise_to_rupees_str,
     rupees_to_paise,
 )
 
@@ -150,7 +153,7 @@ class DefectPlan:
     ambiguous_pair: int = 0
 
 
-def scaled_plan(scale: float) -> "DefectPlan":
+def scaled_plan(scale: float) -> DefectPlan:
     """
     Multiply every planted defect count by `scale`.
 

@@ -24,15 +24,14 @@ outcome, rather than into a wrong number in the books.
 from __future__ import annotations
 
 import json
-import os
 import sys
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from taxonomy import AGENT_CLASSIFICATIONS  # noqa: E402
 from llm import Provider, get_provider  # noqa: E402
+from taxonomy import AGENT_CLASSIFICATIONS  # noqa: E402
 from tools import TOOL_SCHEMA, InvestigationTools, build_dispatch  # noqa: E402
 
 MAX_STEPS = 5

@@ -34,8 +34,11 @@ jobs:
           python-version: "3.12"
       - name: Regenerate the site data from the current engine
         # Committed snapshots can lag the code; the published figures must not.
+        # requirements-dev.txt, not just pytest: the site states the test
+        # count, and without FastAPI the web-layer tests are skipped and the
+        # count comes out short without any error.
         run: |
-          python -m pip install pytest
+          python -m pip install -r requirements-dev.txt
           python scripts/build_site_data.py --out web/public/data
       - uses: actions/setup-node@v4
         with:

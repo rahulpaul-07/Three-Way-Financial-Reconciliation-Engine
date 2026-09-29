@@ -28,15 +28,21 @@ jobs:
         # Deliberately not installing any provider SDK. The suite covers the
         # agent's constraints by calling them directly, so it must pass with
         # no model available and no network access.
-        #
-        # httpx2 is a test-only dependency: Starlette's TestClient imports it.
-        # It is not needed to serve the app, so it stays out of requirements-web.txt.
-        run: |
-          python -m pip install --upgrade pip pytest httpx2==2.12.0
-          python -m pip install -r requirements-web.txt
+        run: python -m pip install -r requirements-dev.txt
 
       - name: Run tests
         run: python -m pytest tests/ -q
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install ruff==0.16.9
+      - name: Ruff (rules in pyproject.toml)
+        run: ruff check src tests scripts
 
   reconcile:
     # Proves the pipeline runs end to end from a clean checkout, not just that
@@ -103,7 +109,9 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - run: python -m pip install pytest
+      # Before the site data build: it counts the suite, and refuses to when
+      # the web-layer tests would be skipped for want of FastAPI.
+      - run: python -m pip install -r requirements-dev.txt
       - name: Site data builds
         run: python scripts/build_site_data.py --quick --out /tmp/site-data
       - run: npm ci
@@ -112,7 +120,6 @@ jobs:
         working-directory: web
       - name: The built dashboard is served at /
         run: |
-          python -m pip install -r requirements-web.txt httpx2==2.12.0
           python - <<'PY'
           import sys; sys.path.insert(0, "src")
           from fastapi.testclient import TestClient
@@ -120,5 +127,7 @@ jobs:
           c = TestClient(app)
           r = c.get("/")
           assert r.status_code == 200 and '<div id="root">' in r.text, r.text[:200]
+          # Prerendered: the opening text is in the HTML, not only in the bundle.
+          assert "They never agree." in r.text, "index.html was not prerendered"
           assert c.post("/api/v1/datasets/01-reference").json()["grading"]["accuracy"] == 1.0
           PY

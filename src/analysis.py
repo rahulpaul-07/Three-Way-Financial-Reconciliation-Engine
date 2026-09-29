@@ -27,7 +27,7 @@ from datetime import date, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from core import MONEY_MOVING_STATUSES, NON_SETTLING_STATUSES  # noqa: E402
+from core import NON_SETTLING_STATUSES  # noqa: E402
 from evaluate import grade, grade_detection, load_truth, wilson_interval  # noqa: E402
 from matcher import Engine, Resolution, load  # noqa: E402
 from taxonomy import TAXONOMY, describe  # noqa: E402

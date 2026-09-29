@@ -312,7 +312,6 @@ class CerebrasProvider(OpenAICompatibleProvider):
     name = "cerebras"
     base_url = "https://api.cerebras.ai/v1"
     env_key = "CEREBRAS_API_KEY"
-    models = ["gpt-oss-120b", "llama-3.3-70b"]
     models = ["gpt-oss-120b", "llama-3.3-70b", "llama3.1-8b"]
 
 
@@ -320,7 +319,6 @@ class OpenRouterProvider(OpenAICompatibleProvider):
     name = "openrouter"
     base_url = "https://openrouter.ai/api/v1"
     env_key = "OPENROUTER_API_KEY"
-    models = ["meta-llama/llama-3.3-70b-instruct", "google/gemini-2.0-flash-001", "mistralai/mistral-large"]
     models = ["meta-llama/llama-3.3-70b-instruct",
               "openai/gpt-oss-120b",
               "google/gemini-2.0-flash-001",
@@ -331,7 +329,6 @@ class TogetherProvider(OpenAICompatibleProvider):
     name = "together"
     base_url = "https://api.together.xyz/v1"
     env_key = "TOGETHER_API_KEY"
-    models = ["meta-llama/Llama-3.3-70B-Instruct-Turbo", "Qwen/Qwen2.5-72B-Instruct-Turbo"]
     models = ["meta-llama/Llama-3.3-70B-Instruct-Turbo",
               "Qwen/Qwen2.5-72B-Instruct-Turbo"]
 
@@ -340,7 +337,6 @@ class MistralProvider(OpenAICompatibleProvider):
     name = "mistral"
     base_url = "https://api.mistral.ai/v1"
     env_key = "MISTRAL_API_KEY"
-    models = ["mistral-large-latest", "mistral-small-latest"]
     models = ["mistral-large-latest", "mistral-small-latest"]
 
 

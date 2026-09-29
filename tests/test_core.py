@@ -19,11 +19,17 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from core import (  # noqa: E402
-    FEE_RULES, FEE_TOLERANCE_PAISE, GST_RATE, MONEY_MOVING_STATUSES,
-    add_working_days, expected_fee, is_working_day, paise_to_rupees_str,
-    rupees_to_paise, working_day_window,
+    FEE_RULES,
+    FEE_TOLERANCE_PAISE,
+    GST_RATE,
+    MONEY_MOVING_STATUSES,
+    add_working_days,
+    expected_fee,
+    is_working_day,
+    paise_to_rupees_str,
+    rupees_to_paise,
+    working_day_window,
 )
-
 
 # --------------------------------------------------------------------------
 # Money
@@ -117,7 +123,7 @@ class TestFeeRules:
         be large enough to absorb a genuine overcharge; the smallest planted
         fee defect in the generator is Rs 1.50.
         """
-        assert FEE_TOLERANCE_PAISE < rupees_to_paise("1.50")
+        assert rupees_to_paise("1.50") > FEE_TOLERANCE_PAISE
 
 
 # --------------------------------------------------------------------------

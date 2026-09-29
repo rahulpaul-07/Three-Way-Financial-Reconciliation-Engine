@@ -1,0 +1,9 @@
+# Test and lint tooling, on top of requirements-web.txt. Pinned so CI and a
+# local checkout run the same versions.
+#
+# httpx2 is what Starlette's TestClient imports; it is not needed to serve the
+# app, so it stays out of requirements-web.txt.
+-r requirements-web.txt
+pytest==9.1.1
+httpx2==2.12.0
+ruff==0.16.9

@@ -34,7 +34,6 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from core import paise_to_rupees_str as _rupees  # noqa: E402

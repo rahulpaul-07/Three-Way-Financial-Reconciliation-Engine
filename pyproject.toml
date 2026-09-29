@@ -1,0 +1,35 @@
+# Tool configuration only. The engine is run as scripts from src/ (see the
+# README), not installed as a package, so there is no [project] table.
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = ["web", "datasets", "data"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # import order
+    "B",        # likely bugs
+    "UP",       # syntax the floor interpreter supports
+    "SIM",      # simplifications
+]
+ignore = [
+    # `l` is used for "line" (statement line, ledger line) throughout the
+    # matcher and generator, where it reads naturally beside `o` and `t`.
+    "E741",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The original single-page form is an HTML document, inline script included,
+# held in one string; its lines are markup, not Python.
+"src/app.py" = ["E501"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI declares request parameters as default-argument calls; they are
+# evaluated once by design and never mutated.
+extend-immutable-calls = ["fastapi.File", "fastapi.Form", "fastapi.Query"]

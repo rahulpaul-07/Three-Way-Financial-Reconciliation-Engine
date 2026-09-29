@@ -70,9 +70,13 @@ from decimal import Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from core import GST_RATE, expected_fee, rupees_to_paise  # noqa: E402
+from core import expected_fee, rupees_to_paise  # noqa: E402
 from generate_data import (  # noqa: E402
-    BankRow, DefectPlan, Generator, GatewayRow, NARRATION_TEMPLATES_CLEAN,
+    NARRATION_TEMPLATES_CLEAN,
+    BankRow,
+    DefectPlan,
+    GatewayRow,
+    Generator,
 )
 
 # Labels this module plants. None of these appear in the engine's taxonomy;

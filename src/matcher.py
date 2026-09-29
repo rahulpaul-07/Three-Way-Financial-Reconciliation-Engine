@@ -27,12 +27,16 @@ from itertools import combinations
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from assignment import IMPOSSIBLE, assign  # noqa: E402
+from assignment import assign  # noqa: E402
 from core import (  # noqa: E402
-    FEE_TOLERANCE_PAISE, MONEY_MOVING_STATUSES, NON_SETTLING_STATUSES,
-    SETTLEMENT_CURRENCY, expected_fee, paise_to_rupees_str, working_day_window,
+    FEE_TOLERANCE_PAISE,
+    MONEY_MOVING_STATUSES,
+    NON_SETTLING_STATUSES,
+    SETTLEMENT_CURRENCY,
+    expected_fee,
+    paise_to_rupees_str,
+    working_day_window,
 )
-
 
 # --------------------------------------------------------------------------
 # Input records

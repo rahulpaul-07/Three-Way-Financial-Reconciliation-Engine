@@ -27,10 +27,14 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from adversarial_data import (  # noqa: E402
-    UNSEEN_LABELS, AdversarialGenerator, UnseenPlan, zero_plan,
+    UNSEEN_LABELS,
+    AdversarialGenerator,
+    UnseenPlan,
+    zero_plan,
 )
 from evaluate import (  # noqa: E402
-    DetectionOutcome, grade_detection, load_unseen_truth,
+    grade_detection,
+    load_unseen_truth,
 )
 
 

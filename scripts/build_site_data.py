@@ -63,13 +63,30 @@ def git_sha() -> str:
 
 
 def test_count() -> int:
+    """
+    The number of tests the site states, counted by collecting the suite.
+
+    Refuses to under-count. The web-layer test modules skip themselves when
+    FastAPI is not installed, and the Pages build once ran without it: the
+    published site said 119 tests while the suite had 169. A module skipped
+    that way leaves no trace in the collection summary, so the dependency is
+    checked directly.
+    """
+    import importlib.util
+    if importlib.util.find_spec("fastapi") is None:
+        raise SystemExit("test count would omit the web-layer tests: "
+                         "install requirements-web.txt first")
     r = subprocess.run([sys.executable, "-m", "pytest", "tests", "-q",
                         "--collect-only"], cwd=ROOT, capture_output=True,
-                       text=True)
+                       text=True, check=False)
     for line in r.stdout.splitlines()[::-1]:
         if "tests collected" in line or "test collected" in line:
+            if "skipped" in line or "error" in line:
+                raise SystemExit(
+                    f"test count would be incomplete ({line.strip()}); "
+                    f"install requirements-web.txt and the test extras first")
             return int(line.split()[0])
-    return 0
+    raise SystemExit(f"could not count the tests:\n{r.stdout[-2000:]}")
 
 
 def main() -> None:
