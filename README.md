@@ -2,10 +2,12 @@
 
 [![tests](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions/workflows/tests.yml/badge.svg)](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions/workflows/tests.yml)
 [![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions)
-[![tests](https://img.shields.io/badge/tests-168%20passing-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-179%20passing-brightgreen)](tests/)
 [![accuracy](https://img.shields.io/badge/classification-100%25%20vs%20answer%20key-brightgreen)](#results)
 [![detection](https://img.shields.io/badge/unseen%20defects-26%2F26%20caught-brightgreen)](#results)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
+
+[![The dashboard's opening: one bank credit of ₹8,025.41 traced back to the six orders it pays for](docs/dashboard.png)](https://rahulpaul-07.github.io/Three-Way-Financial-Reconciliation-Engine/)
 
 **[Live dashboard](https://rahulpaul-07.github.io/Three-Way-Financial-Reconciliation-Engine/)** —
 the engine's output as an interactive workbench: where the captured money went,
@@ -21,9 +23,8 @@ has to be clicked twice.
 **[Live app](https://recon-engine-yjim.onrender.com)** — the same dashboard served
 by the engine itself, plus the JSON API (`/api/docs`). Hosted on a free tier,
 which stops the instance after 15 minutes idle and takes 30 to 60 seconds to
-start it again; `.github/workflows/keepalive.yml` pings it every 10 minutes to
-avoid that, at the cost of most of the free tier's monthly instance-hours, and
-can be deleted if those are worth more than the wait. Reconciliation needs no API key; the
+start it again; see [Keeping the engine awake](#keeping-the-engine-awake). The
+dashboard link above never waits for it. Reconciliation needs no API key; the
 agent and Q&A panels use one, and a visitor can supply their own for a single
 request.
 
@@ -51,7 +52,7 @@ reads.
 | Resolved | **90.8%** (95% CI 84.9-94.5%) |
 | Classification accuracy | **100.0%** across 14 classes |
 | Under compound defects | degrades to 91.9% at 85% defect density, 81.5% when every record is defective |
-| Tests | 168; the original suite was verified by mutation, the tests added in this round were not |
+| Tests | 179; the original suite and the tests added on 2026-09-29 were verified by mutation, the 2026-09-22 round was not |
 | Across 12 independent batches | 92.7% +/- 0.4% resolved, 100.0% +/- 0.0% accuracy |
 | Throughput | roughly 230,000-290,000 entities/sec from 141 to 5,022 entities (single runs), linear cost |
 | Unseen defect classes | 26/26 planted records flagged, 0 silent passes (was 15/26) |
@@ -94,7 +95,7 @@ python3 src/investigate.py --data data --json agent_traces.json
 python3 src/report.py --data data --traces agent_traces.json \
                       --qa qa_answers.json --out report.html
 python3 src/ask.py --data data --demo --json qa_answers.json
-python3 -m pytest tests/ -q                           # 168 tests
+python3 -m pytest tests/ -q                           # 179 tests
 python3 src/evaluate.py --stress --compound --seeds 3 # where it breaks
 ```
 
@@ -276,7 +277,7 @@ Two ways to run it locally:
 
 ```bash
 # Engine and API only (the original single-page form is served at /)
-pip install -r requirements-web.txt
+pip install -r requirements-dev.txt     # web runtime + pytest + ruff
 python -m uvicorn app:app --app-dir src --reload
 
 # With the dashboard
@@ -299,6 +300,21 @@ registry components can be added with `npx shadcn add`. It computes nothing
 about the reconciliation: every figure comes from the engine's JSON output, and
 the recorded snapshots it falls back to (`web/public/data/`) are produced by
 `python3 scripts/build_site_data.py`, which runs the engine and the evaluator.
+
+**Load time.** The production build prerenders the page into `index.html`
+(`web/src/entry-server.tsx`, `web/scripts/prerender.mjs`), so the opening text
+paints from the HTML before any JavaScript has run, and React hydrates it
+afterwards. The chart sections are loaded with `import()`, which keeps recharts
+and d3 (about 100 kB gzipped) off the path to the first paint. Measured with
+Lighthouse's mobile profile against the same local server, three runs each:
+
+| | Before | After |
+|---|---|---|
+| Performance score | 83 | 95 |
+| First contentful paint | 3.2 s | 2.4 s |
+| Largest contentful paint | 3.4 s | 2.4 s |
+| Total blocking time | 160-180 ms | 60-90 ms |
+| JavaScript before first paint (gzipped) | 218 kB | 109 kB |
 
 **The JSON API** is versioned under `/api/v1`, with OpenAPI docs at `/api/docs`:
 
@@ -326,20 +342,57 @@ money, and are limited per client. The model-backed endpoints spend the
 operator's key, so they share a global hourly budget — except when a visitor
 supplies their own key, which is handed to a single client for that request,
 never placed in the environment, never logged, and never allowed to fall
-through to the operator's other providers. Uploads are read with a size cap
-before they are parsed, written to a temporary directory and deleted with the
-response. Responses carry `nosniff`, frame-denial and referrer headers, and
-cross-origin calls are allowed only from the Pages site.
+through to the operator's other providers. A request body over the cap is
+refused before the multipart parser reads it, whether it declares its length
+or is chunked; each file then has its own cap, and uploads are written to a
+temporary directory and deleted with the response. Model calls, the generator
+and the engine run off the event loop, so one slow investigation does not
+stall other visitors or the health check. Responses carry `nosniff`,
+frame-denial and referrer headers, and cross-origin calls are allowed only
+from the Pages site.
+
+The limits are set from the environment, with these defaults:
+
+| Variable | Default | Limits |
+|---|---|---|
+| `RECON_ENGINE_LIMIT_PER_HOUR` | 240 | reconciliations and generated batches, per client, every route that runs the engine |
+| `RECON_MODEL_LIMIT_PER_HOUR` | 60 | model-backed requests on the operator's key, all clients together |
+| `RECON_VISITOR_LIMIT_PER_HOUR` | 30 | model-backed requests on a visitor's own key, per client |
+
+A value that is not a positive integer stops the server at start-up rather
+than running with a limit nobody chose.
+
+### Keeping the engine awake
+
+A free Render instance sleeps after 15 minutes without traffic. The only
+reliable fix on the free tier is an outside request at least that often:
+
+1. Create a free monitor at [UptimeRobot](https://uptimerobot.com) or
+   [cron-job.org](https://cron-job.org).
+2. Type HTTP(s), method HEAD, URL `https://recon-engine-yjim.onrender.com/health`,
+   interval 5 minutes.
+
+`/health` answers HEAD as well as GET, because monitors default to HEAD and
+count a 405 as an outage. `.github/workflows/keepalive.yml` pings on a 10-minute
+schedule too, but GitHub delays scheduled runs under load: through September
+2026 it actually fired every 2 to 7 hours, far too rarely on its own. It stays
+as a backstop.
+
+A service that never sleeps uses about 730 of the free tier's 750 monthly
+instance-hours. Whether or not it is awake, the dashboard on GitHub Pages loads
+from static files and falls back to recorded runs, so a visitor never waits on
+the engine to see the page.
 
 ## Continuous integration
 
-Every push runs four jobs, and a separate workflow publishes the dashboard to GitHub Pages:
+Every push runs five jobs, and a separate workflow publishes the dashboard to GitHub Pages:
 
 | Job | What it proves |
 |---|---|
-| `test` | 168 tests pass on Python 3.10 through 3.13, with no provider SDK installed |
+| `test` | 179 tests pass on Python 3.10 through 3.13, with no provider SDK installed |
+| `lint` | `ruff check` passes with the rules in `pyproject.toml` |
 | `reconcile` | a clean checkout generates, reconciles, grades and reports end to end, and no unseen defect class passes silently |
-| `web` | the site data builds from a clean checkout, the dashboard type-checks and builds, and the engine serves it |
+| `web` | the site data builds from a clean checkout, the dashboard type-checks, builds and prerenders, and the engine serves it |
 | `provider-degradation` | the engine reconciles correctly with **no** language model configured |
 
 The `reconcile` job asserts the exact accuracy figure. A regression that lowers
@@ -410,7 +463,7 @@ web/                  React dashboard (Vite, TypeScript, Tailwind)
 including a section on what it deliberately does not do.
 
 `DECISIONS.md` - fourteen design decisions, each with the alternative rejected.
-`NOTES.md` - twenty-five entries logging what broke during the build and how each was
+`NOTES.md` - thirty-one entries logging what broke during the build and how each was
 resolved, written as they happened rather than reconstructed afterwards.
 Includes the case where the agent's investigation exposed a weakness in the
 answer key itself.

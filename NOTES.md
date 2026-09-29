@@ -31,6 +31,11 @@ afterwards. Entries are in the order they happened.
 - **2026-09-22** — The page promised a bypass the server did not honour.
 - **2026-09-22** — Two limits that did not limit.
 - **2026-09-22** — Two README figures had drifted from the code.
+- **2026-09-29** — The keep-alive ran every few hours, not every ten minutes.
+- **2026-09-29** — The page was blank until 218 kB of JavaScript had run.
+- **2026-09-29** — One investigation froze the whole server.
+- **2026-09-29** — Four gaps in the public endpoints.
+- **2026-09-29** — The site said 119 tests; there were 169.
 
 The entries worth reading first, if reading only three:
 
@@ -684,3 +689,92 @@ once dipping to 153,000 at the largest size. The README now gives the range.
 Both are the same lesson as the answer-key entry: a number typed into a
 document is a snapshot of the code at one moment. The site now builds its
 figures from `scripts/build_site_data.py`, and CI asserts the ones that matter.
+
+### 2026-09-29 - The keep-alive ran every few hours, not every ten minutes.
+
+The site was slow to load for anyone who reached the engine first. A cold
+request to `/health` took 22 seconds, although `keepalive.yml` was meant to
+have pinged it within the last ten minutes.
+
+The workflow's run history explained it. Scheduled for `*/10 * * * *`, it had
+actually run at intervals of two to seven hours all month: GitHub treats cron
+as best effort and delays scheduled workflows when runners are busy. Every run
+succeeded, so nothing looked wrong. The instance was asleep most of the time.
+
+Nothing inside GitHub Actions fixes that without holding a runner for hours at
+a time. The fix is an external uptime monitor sending HEAD `/health` every five
+minutes, which has to be set up on an account outside the repository; the
+README says how. The workflow stays as a backstop and now says what it
+actually achieves.
+
+The Pages dashboard was never the slow part: it loads from static files and
+falls back to recorded runs. It could still be faster, which is the next entry.
+
+### 2026-09-29 - The page was blank until 218 kB of JavaScript had run.
+
+Lighthouse's mobile profile put the largest paint at 3.4 seconds, 86% of it
+"render delay": the hero paragraph existed only inside the bundle.
+
+Two causes. The build split recharts and d3 into a `charts` chunk to keep them
+off the opening, but that chunk had absorbed small helpers the entry also used,
+so the entry imported it and Vite preloaded all of it before the first paint.
+And the page rendered nothing until React had run.
+
+The chart sections now load with `import()`, and the manual chunk rule is gone,
+so the chart libraries are fetched after the opening paints. The build also
+renders the page to HTML (`entry-server.tsx`), writes it into `index.html`, and
+the client hydrates it. Everything that fetches or measures already lived in
+effects, which do not run on the server, so the prerender is the page as it
+looks before data arrives: text, headings and skeletons.
+
+Same machine, same server, three runs each: performance score 83 to 95, first
+paint 3.2 to 2.4 seconds, largest paint 3.4 to 2.4, blocking time roughly
+halved. CI now fails if `index.html` ships without the prerendered text.
+
+### 2026-09-29 - One investigation froze the whole server.
+
+The model-backed handlers are `async def` and called the agent directly. The
+agent's HTTP calls block, so for the minute an investigation took, the event
+loop served nothing else: other visitors, the dashboard's health poll, and
+Render's own health check all waited behind it. The same was true, for a few
+hundred milliseconds at a time, of generating and reconciling a batch.
+
+Blocking work now runs in the thread pool. The test sends a deliberately slow
+investigation and a health check together and requires the health check to
+answer within a second. With the fix reverted it answered after 1.5 seconds,
+exactly the length of the fake model call, so the test does measure the thing
+it names.
+
+### 2026-09-29 - Four gaps in the public endpoints.
+
+- **The original routes had no rate limit.** `/sample` starts a Python
+  process per request and `/reconcile` runs the engine, the same work as their
+  `/api/v1` twins, but only the twins were limited. All routes that run the
+  engine now share one per-client budget.
+- **The size cap still ran after the upload.** The 2026-09-22 fix stopped
+  reading a file one byte past the cap, but by then FastAPI's multipart parser
+  had already received and spooled the whole body. A middleware now refuses a
+  body over the cap on its declared length, and counts the bytes of one that
+  declares none. It sits inside the CORS middleware, so the Pages site can
+  still read the 413.
+- **`/sample` returned the exception text**, which names the interpreter and
+  the temporary directory. The trace goes to the log now.
+- **A JSON body that was not an object crashed `/ask`** with a 500. Any body
+  without a string question is now "No question supplied."
+
+The limits are read from the environment, and a malformed value stops the
+server at start-up rather than silently becoming a default. Each fix has a
+test, and each test fails on the previous commit.
+
+### 2026-09-29 - The site said 119 tests; there were 169.
+
+The Pages workflow installed only pytest before building the site data. The
+web-layer test modules skip themselves without FastAPI, and a module skipped
+at import leaves no trace in pytest's collection summary, so the count came
+out 50 short and was published. `build_site_data.py` now refuses to count
+unless FastAPI is importable, and both workflows install the pinned
+`requirements-dev.txt`.
+
+Linting turned up a quieter version of the same problem: four provider classes
+in `llm.py` assigned `models` twice, and the second list silently replaced the
+first. Behaviour was right; the dead lines are gone, and `ruff` now runs in CI.

@@ -1,14 +1,21 @@
 name: keepalive
 
 # Render's free tier stops an instance after 15 minutes without traffic, and
-# the next visitor waits 30 to 60 seconds for it to start. A request every 10
-# minutes keeps it up, so the dashboard's live runs are instant.
+# the next visitor waits 30 to 60 seconds for it to start.
 #
-# The trade-off: a service that never sleeps uses around 730 instance-hours a
+# This schedule alone does NOT keep it awake. GitHub treats cron as best
+# effort and delays scheduled runs under load: asked for every 10 minutes,
+# this workflow actually ran every 2 to 7 hours through September 2026, so the
+# instance slept between runs and visitors met the cold start anyway.
+#
+# The primary keep-alive is an external uptime monitor sending HEAD /health
+# every 5 to 10 minutes (see "Keeping the engine awake" in the README). This
+# workflow is a backstop that costs nothing, and a record of the attempt.
+#
+# The trade-off of a service that never sleeps: around 730 instance-hours a
 # month against the free tier's 750, shared across all free services on the
-# account. Delete this workflow, or widen the schedule, if that matters more
-# than the wait. The site works either way; without the engine it falls back
-# to the recorded snapshots.
+# account. The site works either way; without the engine it falls back to the
+# recorded snapshots.
 
 on:
   schedule:
