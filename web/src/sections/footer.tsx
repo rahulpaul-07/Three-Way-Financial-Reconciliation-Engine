@@ -1,12 +1,14 @@
 import type { Meta } from "@/lib/types";
+import { Ornament } from "@/components/ui/ornament";
 import { REPO, REPORT, VIDEO, blob } from "./links";
 
 export function Footer({ meta }: { meta: Meta | null }) {
   return (
-    <footer className="border-t border-rule">
-      <div className="mx-auto grid max-w-page gap-8 px-5 py-12 text-sm text-graphite sm:grid-cols-[1.4fr_1fr_1fr] sm:px-8">
+    <footer className="border-t-[3px] border-double border-rule">
+      <div className="flex justify-center pt-8"><Ornament width={200} /></div>
+      <div className="mx-auto grid max-w-page gap-8 px-5 pb-12 pt-8 text-sm text-graphite sm:grid-cols-[1.4fr_1fr_1fr] sm:px-8">
         <div className="max-w-sm">
-          <p className="font-serif text-base text-ink">Three-way payment reconciliation engine</p>
+          <p className="font-serif text-lg text-ink">Three-way payment reconciliation engine</p>
           <p className="mt-2">Built by Rahul Paul. Python engine, MIT licensed. Every figure on this page is produced by the engine and its evaluator at build time.</p>
           {meta && (
             <p className="mt-3 text-xs">

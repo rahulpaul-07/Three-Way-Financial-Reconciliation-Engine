@@ -5,6 +5,7 @@ import { cn, pct, rupees } from "@/lib/utils";
 import { ButtonLink } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/panel";
 import { TickMark } from "@/components/ui/tick-mark";
+import { Ornament } from "@/components/ui/ornament";
 import { REPO } from "./links";
 
 // The settlement the hero reconciles. Real rows from datasets/01-reference,
@@ -41,12 +42,12 @@ export function Hero({ reference, meta }: { reference: Run | null; meta: Meta | 
       <LedgerBackdrop />
       <div className="relative mx-auto grid max-w-page gap-12 px-5 pb-16 pt-12 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-14 lg:pb-24 lg:pt-20">
         <div className="max-w-xl">
-          <p className="mb-6 flex items-center gap-3 font-mono text-xs uppercase tracking-[0.14em] text-graphite">
-            <span aria-hidden className="h-px w-8 bg-tick" />
-            Three-way payment reconciliation
-          </p>
-          <h1 className="text-display text-balance font-medium">Three systems record every sale. They never agree.</h1>
-          <p className="mt-6 max-w-prose text-lg leading-relaxed text-graphite">
+          <p className="smallcaps mb-5 text-sm text-graphite">Three-way payment reconciliation</p>
+          <h1 className="text-display text-balance font-medium">
+            Three systems record every sale. <em className="font-medium text-redink">They never agree.</em>
+          </h1>
+          <Ornament className="mt-7" width={160} />
+          <p className="dropcap mt-6 max-w-prose text-lg leading-relaxed text-graphite">
             The merchant's ledger has the order amount. The payment gateway has it less its fee.
             The bank has one netted credit a day or two later, covering dozens of orders, with no line items.
             This engine reconciles all three, explains every difference it can, and hands the rest to a person with a reason attached.
@@ -55,7 +56,7 @@ export function Hero({ reference, meta }: { reference: Run | null; meta: Meta | 
             <ButtonLink href="#workbench" variant="ink">Open the workbench</ButtonLink>
             <ButtonLink href={REPO}>Read the source</ButtonLink>
           </div>
-          <dl className="mt-10 grid max-w-md grid-cols-3 gap-x-6 border-t border-rule pt-5 text-sm">
+          <dl className="mt-10 grid max-w-md grid-cols-3 gap-x-6 border-t-[3px] border-double border-rule pt-5 text-sm">
             <Fact term="resolved on the reference batch" value={meta ? pct(meta.headline.resolution_rate) : undefined} />
             <Fact term="agreement with the answer key" value={meta ? pct(meta.headline.accuracy, 0) : undefined} />
             <Fact term="unseen defects caught" value={meta?.headline.detection} />
@@ -101,14 +102,14 @@ function ReconcileSheet({ settlement, lines, bank }: NonNullable<ReturnType<type
 
   return (
     <figure>
-      <div className="overflow-hidden rounded-lg border border-rule bg-sheet">
+      <div className="engraved overflow-hidden bg-sheet p-1.5 shadow-[0_1px_0_rgb(var(--rule)),0_18px_40px_-24px_rgb(var(--ink)/0.35)]">
         <div className="scroll-x">
           <table className="w-full border-collapse whitespace-nowrap text-[0.8rem] sm:min-w-[33rem] sm:text-sm">
             <caption className="sr-only">
               One settlement reconciled across the merchant ledger, the gateway report and the bank statement
             </caption>
             <thead>
-              <tr className="border-b border-ink/60 text-left align-bottom font-serif text-[0.95rem]">
+              <tr className="border-b-[3px] border-double border-ink/60 text-left align-bottom font-serif text-[0.95rem]">
                 <th className="py-3 pl-3 font-medium sm:pl-4"><span className="sm:hidden">Ledger</span><span className="hidden sm:inline">Merchant ledger</span></th>
                 <th className="hidden sm:table-cell"><span className="sr-only">Ledger amount</span></th>
                 <th className="w-8"><span className="sr-only">Amount agrees with gateway</span></th>

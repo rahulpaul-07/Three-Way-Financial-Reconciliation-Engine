@@ -62,13 +62,15 @@ export function NavBar({ engine }: { engine: Engine }) {
   const s = STATUS[engine.state];
   const seconds = Math.round(engine.waitedMs / 1000);
   return (
-    <header className="sticky top-0 z-40 border-b border-rule/80 bg-paper/90 backdrop-blur"
+    <header className="sticky top-0 z-40 border-b-[3px] border-double border-rule bg-paper/95 backdrop-blur"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
       <nav className="mx-auto flex h-14 max-w-page items-center gap-6 px-5 sm:px-8" aria-label="Main">
-        <a href="#top" className="flex items-center gap-2 font-serif text-[1.05rem] font-semibold">
-          <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden>
-            <rect width="32" height="32" rx="6" className="fill-ink" />
-            <path d="M8 17l5 5 11-12" className="stroke-paper" strokeWidth="3.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <a href="#top" className="flex items-center gap-2.5 font-serif text-[1.1rem] font-medium">
+          {/* A clerk's seal: the audit tick inside a double-ruled square. */}
+          <svg width="24" height="24" viewBox="0 0 32 32" aria-hidden>
+            <rect width="32" height="32" className="fill-ink" />
+            <rect x="2.5" y="2.5" width="27" height="27" fill="none" className="stroke-paper/40" strokeWidth="1" />
+            <path d="M8 17l5 5 11-12" className="stroke-paper" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <span className="hidden sm:inline">Three-way reconciliation</span>
           <span className="sm:hidden">Recon</span>
@@ -81,14 +83,14 @@ export function NavBar({ engine }: { engine: Engine }) {
               {l.label}
               {active === l.id && (
                 <motion.span layoutId="nav-active" aria-hidden
-                  className="absolute inset-x-2.5 -bottom-[0.6rem] h-0.5 rounded-full bg-tick"
+                  className="absolute inset-x-2.5 -bottom-[0.7rem] h-0.5 bg-redink"
                   transition={{ type: "spring", stiffness: 500, damping: 40 }} />
               )}
             </a>
           ))}
         </div>
         <span title={s.title} aria-live="polite"
-          className="ml-auto flex items-center gap-2 rounded-full border border-rule px-2.5 py-1 text-xs text-graphite lg:ml-2">
+          className="ml-auto flex items-center gap-2 border border-rule bg-sheet px-2.5 py-1 text-xs text-graphite lg:ml-2">
           <span className={cn("h-2 w-2 rounded-full", s.dot)} aria-hidden />
           {s.text}
           {engine.state === "waking" && seconds > 2 && <span className="num">{seconds}s</span>}
@@ -103,7 +105,7 @@ export function NavBar({ engine }: { engine: Engine }) {
         </a>
       </nav>
       <motion.div aria-hidden style={{ scaleX: progress }}
-        className="h-px origin-left bg-tick" />
+        className="h-px origin-left bg-brass" />
     </header>
   );
 }

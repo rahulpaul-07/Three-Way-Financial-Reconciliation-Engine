@@ -174,7 +174,7 @@ function Generate({ disabled, busy, engine, onGenerate }: {
   const [compound, setCompound] = useState(false);
 
   return (
-    <div className="rounded-lg border border-rule bg-sheet p-5 sm:p-6">
+    <div className="engraved bg-sheet p-5 sm:p-6">
       <p className="max-w-prose text-sm text-graphite">
         The generator plants known defects and writes an answer key alongside, so a generated batch is graded as well as reconciled.
         Raise the defect rate to watch the resolution rate fall; allow compound defects to watch accuracy fall.
@@ -236,7 +236,7 @@ function UploadForm({ disabled, busy, engine, onUpload }: {
   const ready = FILES.filter((f) => f.required).every((f) => files[f.name]);
 
   return (
-    <div ref={formRef} className="rounded-lg border border-rule bg-sheet p-5 sm:p-6">
+    <div ref={formRef} className="engraved bg-sheet p-5 sm:p-6">
       <p className="max-w-prose text-sm text-graphite">
         Amounts are integer paise (45000 means ₹450.00). Files are reconciled in memory and deleted with the response; nothing is stored.
         To try it without your own books, download a set from{" "}

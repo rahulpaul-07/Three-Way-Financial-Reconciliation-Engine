@@ -32,7 +32,7 @@ export function Principles() {
         <div className="mt-12 grid gap-4 md:grid-cols-3">
           {STANCES.map((s, i) => (
             <BlurFade key={s.title} delay={i * 0.08}
-              className="flex flex-col rounded-lg border border-rule bg-sheet p-6">
+              className="flex flex-col engraved bg-sheet p-6">
               <h3 className="font-serif text-xl font-medium leading-snug">{s.title}</h3>
               <p className="mt-3 leading-relaxed text-graphite">{s.body}</p>
             </BlurFade>
