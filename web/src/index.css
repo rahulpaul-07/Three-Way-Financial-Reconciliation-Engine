@@ -2,38 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
-/* A Victorian counting-house ledger. Clerks wrote in iron-gall ink on cream
-   paper ruled in sepia, ticked what agreed in blue pencil, and entered what
-   did not in red ink, a convention older than double-entry textbooks. The
-   palette is that, and every colour keeps one meaning wherever it appears.
-   Brass is the only colour with no meaning: it is kept for ornament. */
+/* Ledger paper. Bookkeepers wrote on green-ruled paper, ticked reconciled
+   items in blue pencil and wrote breaks in red ink; the palette is that, and
+   every colour carries that meaning wherever it appears. */
 :root {
-  --paper: 242 234 216;     /* #F2EAD8 cream ledger paper             */
-  --sheet: 251 246 234;     /* #FBF6EA a fresh leaf for panels        */
-  --rule: 205 187 152;      /* #CDBB98 sepia ruling                   */
-  --ink: 43 29 20;          /* #2B1D14 iron-gall brown-black ink      */
-  --graphite: 106 88 70;    /* #6A5846 faded ink, secondary text      */
-  --tick: 30 63 115;        /* #1E3F73 Prussian blue pencil: matched  */
-  --redink: 140 28 19;      /* #8C1C13 oxblood red ink: a break       */
-  --pencil: 138 90 11;      /* #8A5A0B ochre: needs a person to look  */
-  --settled: 46 91 69;      /* #2E5B45 bottle green: explained        */
-  --brass: 156 122 60;      /* #9C7A3C ornament only                  */
+  --paper: 231 237 230;     /* #E7EDE6 ruled ledger paper            */
+  --sheet: 243 246 241;     /* #F3F6F1 a lighter leaf for panels     */
+  --rule: 184 201 190;      /* #B8C9BE the green rule lines          */
+  --ink: 20 35 59;          /* #14233B navy writing ink              */
+  --graphite: 84 96 108;    /* #54606C secondary text, pencil grey   */
+  --tick: 36 87 166;        /* #2457A6 blue audit pencil: matched    */
+  --redink: 176 38 30;      /* #B0261E red ink: a genuine break      */
+  --pencil: 166 108 20;     /* #A66C14 amber: needs a person to look */
+  --settled: 58 110 84;     /* #3A6E54 expected, explained movement  */
   color-scheme: light;
 }
 
-/* The same book read by gaslight. */
 @media (prefers-color-scheme: dark) {
   :root {
-    --paper: 23 17 13;       /* #17110D walnut           */
-    --sheet: 33 24 18;       /* #211812                  */
-    --rule: 74 59 44;        /* #4A3B2C                  */
-    --ink: 237 227 204;      /* #EDE3CC                  */
-    --graphite: 179 164 140; /* #B3A48C                  */
-    --tick: 143 176 224;     /* #8FB0E0                  */
-    --redink: 226 122 107;   /* #E27A6B                  */
-    --pencil: 217 169 78;    /* #D9A94E                  */
-    --settled: 134 190 152;  /* #86BE98                  */
-    --brass: 201 164 92;     /* #C9A45C                  */
+    --paper: 14 22 36;       /* #0E1624 night ledger     */
+    --sheet: 21 31 48;       /* #151F30                  */
+    --rule: 44 62 84;        /* #2C3E54                  */
+    --ink: 226 232 224;      /* #E2E8E0                  */
+    --graphite: 150 164 176; /* #96A4B0                  */
+    --tick: 122 166 238;     /* #7AA6EE                  */
+    --redink: 240 110 98;    /* #F06E62                  */
+    --pencil: 226 170 84;    /* #E2AA54                  */
+    --settled: 116 184 146;  /* #74B892                  */
     color-scheme: dark;
   }
 }
@@ -42,15 +37,10 @@
   html { scroll-behavior: smooth; scroll-padding-top: 4.5rem; }
   body {
     @apply bg-paper text-ink font-sans antialiased;
-    /* Paper darkens toward the edges of an old page. Two gradients, painted
-       once; no texture image and no filter. */
-    background-image:
-      radial-gradient(ellipse at 50% 0%, rgb(var(--sheet) / 0.9), transparent 60%),
-      radial-gradient(ellipse at 50% 50%, transparent 55%, rgb(var(--brass) / 0.10) 100%);
     font-feature-settings: "tnum" 1, "lnum" 1;
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  h1, h2, h3 { @apply font-serif text-ink; font-feature-settings: "lnum" 1, "kern" 1, "liga" 1, "dlig" 1; }
+  h1, h2, h3 { @apply font-serif text-ink; font-feature-settings: "lnum" 1, "kern" 1; }
   ::selection { background: rgb(var(--tick) / 0.22); }
   :focus-visible { outline: 2px solid rgb(var(--tick)); outline-offset: 2px; border-radius: 3px; }
   @media (prefers-reduced-motion: reduce) {
@@ -67,16 +57,6 @@
   }
   /* The accountant's totals line: a single rule above, a double rule below. */
   .totals { border-top: 1px solid rgb(var(--ink) / 0.8); border-bottom: 3px double rgb(var(--ink) / 0.8); }
-  /* An engraved frame: a hairline border and a second one set inside it,
-     the way a Victorian printer boxed a table. */
-  .engraved { border: 1px solid rgb(var(--rule)); outline: 1px solid rgb(var(--rule) / 0.75); outline-offset: -5px; }
-  /* A running head in letter-spaced small capitals. */
-  .smallcaps { font-variant-caps: all-small-caps; letter-spacing: 0.12em; }
-  /* A two-line drop capital on the first letter of an opening paragraph. */
-  .dropcap::first-letter {
-    float: left; font-family: "Playfair Display", Georgia, serif; font-weight: 700;
-    font-size: 3.35em; line-height: 0.82; padding: 0.06em 0.1em 0 0; color: rgb(var(--redink));
-  }
   .num { font-variant-numeric: tabular-nums lining-nums; }
   .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 

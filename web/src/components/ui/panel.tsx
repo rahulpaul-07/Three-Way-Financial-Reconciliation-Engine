@@ -6,10 +6,10 @@ export function Panel({ title, note, action, className, children }: {
   className?: string; children: React.ReactNode;
 }) {
   return (
-    <section className={cn("engraved bg-sheet p-6 sm:p-7", className)}>
+    <section className={cn("rounded-lg border border-rule bg-sheet p-5 sm:p-6", className)}>
       {(title || action) && (
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
-          {title && <h3 className="text-lg font-medium leading-tight">{title}</h3>}
+          {title && <h3 className="text-lg font-semibold leading-tight">{title}</h3>}
           {action}
         </div>
       )}

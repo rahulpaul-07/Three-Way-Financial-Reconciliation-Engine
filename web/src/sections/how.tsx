@@ -56,7 +56,7 @@ function Flow({ run }: { run: Run | null }) {
   return (
     <figure>
       {/* Stacked on phones, side by side from sm up; the beams follow. */}
-      <div ref={box} className="relative grid items-center gap-y-12 engraved bg-sheet px-5 py-9 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)] sm:gap-x-12 sm:gap-y-0 sm:px-10 sm:py-10 lg:gap-x-28">
+      <div ref={box} className="relative grid items-center gap-y-12 rounded-lg border border-rule bg-sheet px-4 py-8 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)] sm:gap-x-12 sm:gap-y-0 sm:px-10 sm:py-10 lg:gap-x-28">
         <div className="relative z-10 grid grid-cols-2 gap-2.5 sm:block sm:space-y-4">
           {SOURCES.map((s, i) => (
             <div key={s.key} ref={src[i]} className="rounded-md border border-rule bg-paper px-2.5 py-2 sm:px-3.5 sm:py-2.5">
@@ -68,8 +68,8 @@ function Flow({ run }: { run: Run | null }) {
           ))}
         </div>
 
-        <div ref={engine} className="relative z-10 rounded-lg bg-ink outline outline-1 [outline-offset:-5px] outline-paper/30 dark:outline-tick/40 px-3 py-5 text-paper sm:px-5 sm:py-6 dark:bg-sheet dark:text-ink dark:ring-1 dark:ring-tick/50">
-          <div className="smallcaps text-[0.8rem] opacity-70 sm:text-sm">Engine</div>
+        <div ref={engine} className="relative z-10 rounded-lg bg-ink px-3 py-5 text-paper sm:px-5 sm:py-6 dark:bg-sheet dark:text-ink dark:ring-1 dark:ring-tick/50">
+          <div className="font-mono text-[0.68rem] uppercase tracking-[0.14em] opacity-60 sm:text-xs">Engine</div>
           <div className="mt-1 font-serif text-base leading-tight sm:text-xl">Tiered matcher</div>
           <ol className="mt-3 hidden space-y-1 text-xs opacity-80 sm:block">
             {TIERS.map((t, i) => <li key={t.name}><span className="num opacity-60">{i}</span> {t.name}</li>)}

@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
-// Colours are CSS variables (see src/index.css) so the light "counting-house
-// ledger" and dark "gaslight" themes share one set of utility names.
+// Colours are CSS variables (see src/index.css) so the light "ledger paper"
+// and dark "night ledger" themes share one set of utility names.
 const v = (name) => `rgb(var(--${name}) / <alpha-value>)`;
 
 export default {
@@ -18,14 +18,10 @@ export default {
         redink: v("redink"),
         pencil: v("pencil"),
         settled: v("settled"),
-        brass: v("brass"),
       },
       fontFamily: {
-        // Display: a high-contrast Didone, the face of Victorian letterpress.
-        serif: ['"Playfair Display"', "Georgia", "Cambria", "serif"],
-        // Reading text and controls: a book serif. `sans` is kept as the
-        // name so the utilities already in use pick it up unchanged.
-        sans: ['"Spectral"', "Georgia", "Cambria", "serif"],
+        serif: ['"Spectral"', "Georgia", "Cambria", "serif"],
+        sans: ['"Public Sans"', "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
         mono: ['"IBM Plex Mono"', "ui-monospace", "SFMono-Regular", "Menlo", "monospace"],
       },
       fontSize: {
@@ -40,8 +36,7 @@ export default {
         display: ["clamp(2.4rem, 5.2vw, 4.2rem)", { lineHeight: "1.04", letterSpacing: "-0.018em" }],
       },
       maxWidth: { prose: "68ch", page: "76rem" },
-      // Square, as ruled paper and letterpress are. Status dots stay round.
-      borderRadius: { sm: "0px", DEFAULT: "1px", md: "1px", lg: "2px" },
+      borderRadius: { sm: "3px", DEFAULT: "5px", lg: "9px" },
     },
   },
   plugins: [],
