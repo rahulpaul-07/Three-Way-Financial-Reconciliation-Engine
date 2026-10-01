@@ -1,10 +1,13 @@
 import { motion, useReducedMotion } from "framer-motion";
-import { useMemo } from "react";
+import { ArrowRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { Meta, Run, Txn } from "@/lib/types";
 import { cn, pct, rupees } from "@/lib/utils";
 import { ButtonLink } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/panel";
 import { TickMark } from "@/components/ui/tick-mark";
+import { BorderBeam } from "@/components/ui/border-beam";
+import { FlickeringGrid } from "@/components/ui/flickering-grid";
 import { REPO } from "./links";
 
 // The settlement the hero reconciles. Real rows from datasets/01-reference,
@@ -41,18 +44,23 @@ export function Hero({ reference, meta }: { reference: Run | null; meta: Meta | 
       <LedgerBackdrop />
       <div className="relative mx-auto grid max-w-page gap-12 px-5 pb-16 pt-12 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-14 lg:pb-24 lg:pt-20">
         <div className="max-w-xl">
-          <p className="mb-6 flex items-center gap-3 font-mono text-xs uppercase tracking-[0.14em] text-graphite">
-            <span aria-hidden className="h-px w-8 bg-tick" />
-            Three-way payment reconciliation
-          </p>
-          <h1 className="text-display text-balance font-medium">Three systems record every sale. They never agree.</h1>
+          <a href="#evidence"
+            className="group mb-7 inline-flex items-center gap-2 rounded-full border border-rule bg-sheet/60 px-3.5 py-1.5 text-[0.8rem] backdrop-blur hover:border-graphite/50">
+            <span className="shiny-text">
+              {meta ? `${meta.tests} tests · ${meta.headline.detection} unseen defects caught` : "Three-way payment reconciliation"}
+            </span>
+            <ArrowRight size={13} aria-hidden className="text-graphite transition-transform group-hover:translate-x-0.5" />
+          </a>
+          <h1 className="text-display text-balance font-semibold">
+            Three systems record every sale. <span className="gradient-text">They never agree.</span>
+          </h1>
           <p className="mt-6 max-w-prose text-lg leading-relaxed text-graphite">
             The merchant's ledger has the order amount. The payment gateway has it less its fee.
             The bank has one netted credit a day or two later, covering dozens of orders, with no line items.
             This engine reconciles all three, explains every difference it can, and hands the rest to a person with a reason attached.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <ButtonLink href="#workbench" variant="ink">Open the workbench</ButtonLink>
+            <ButtonLink href="#workbench" variant="ink" className="shimmer">Open the workbench</ButtonLink>
             <ButtonLink href={REPO}>Read the source</ButtonLink>
           </div>
           <dl className="mt-10 grid max-w-md grid-cols-3 gap-x-6 border-t border-rule pt-5 text-sm">
@@ -69,18 +77,34 @@ export function Hero({ reference, meta }: { reference: Run | null; meta: Meta | 
   );
 }
 
-/** Faint ruled paper behind the opening, fading out before the text starts. */
+/**
+ * One cool light source above the fold and a flickering grid beneath it,
+ * fading out before the content below. The grid stops when scrolled away.
+ */
 function LedgerBackdrop() {
+  const mask = "radial-gradient(ellipse 75% 65% at 50% 25%, #000 25%, transparent 72%)";
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="ruled absolute inset-0 opacity-[0.55]"
-        style={{ maskImage: "linear-gradient(to bottom, rgb(0 0 0 / 0.5), transparent 72%)",
-                 WebkitMaskImage: "linear-gradient(to bottom, rgb(0 0 0 / 0.5), transparent 72%)" }} />
-      <div className="absolute inset-y-0 left-1/2 hidden w-px bg-rule/60 lg:block"
-        style={{ maskImage: "linear-gradient(to bottom, rgb(0 0 0 / 0.6), transparent 80%)",
-                 WebkitMaskImage: "linear-gradient(to bottom, rgb(0 0 0 / 0.6), transparent 80%)" }} />
+      <div className="absolute left-1/2 top-[-18rem] h-[34rem] w-[64rem] max-w-[160%] -translate-x-1/2 rounded-full opacity-60 dark:opacity-100"
+        style={{ background: "radial-gradient(closest-side, rgb(var(--tick) / 0.22), rgb(var(--violet) / 0.08) 55%, transparent)" }} />
+      <div className="absolute inset-0" style={{ maskImage: mask, WebkitMaskImage: mask }}>
+        <FlickeringGrid />
+      </div>
     </div>
   );
+}
+
+/** True for the first few seconds after hydration: the hero card's beam
+    traces it while its rows tick in, then stops rather than running forever. */
+function useIntro(ms: number) {
+  const [on, setOn] = useState(false);
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    setOn(true);
+    const t = window.setTimeout(() => setOn(false), ms);
+    return () => clearTimeout(t);
+  }, [ms]);
+  return on;
 }
 
 function Fact({ term, value }: { term: string; value?: string }) {
@@ -98,17 +122,19 @@ function ReconcileSheet({ settlement, lines, bank }: NonNullable<ReturnType<type
   const ties = bank ? bank.movement_paise === settlement.total_paise && netSum === settlement.total_paise : false;
   const step = 0.16;
   const tieAt = 0.5 + lines.length * step + 0.25;
+  const intro = useIntro(7500);
 
   return (
     <figure>
-      <div className="overflow-hidden rounded-lg border border-rule bg-sheet">
+      <div className="relative overflow-hidden rounded-lg border border-rule bg-sheet shadow-[0_30px_80px_-40px_rgb(var(--tick)/0.45)]">
+        {intro && <BorderBeam size={160} duration={3.5} />}
         <div className="scroll-x">
           <table className="w-full border-collapse whitespace-nowrap text-[0.8rem] sm:min-w-[33rem] sm:text-sm">
             <caption className="sr-only">
               One settlement reconciled across the merchant ledger, the gateway report and the bank statement
             </caption>
             <thead>
-              <tr className="border-b border-ink/60 text-left align-bottom font-serif text-[0.95rem]">
+              <tr className="border-b border-rule text-left align-bottom text-[0.85rem] text-graphite">
                 <th className="py-3 pl-3 font-medium sm:pl-4"><span className="sm:hidden">Ledger</span><span className="hidden sm:inline">Merchant ledger</span></th>
                 <th className="hidden sm:table-cell"><span className="sr-only">Ledger amount</span></th>
                 <th className="w-8"><span className="sr-only">Amount agrees with gateway</span></th>

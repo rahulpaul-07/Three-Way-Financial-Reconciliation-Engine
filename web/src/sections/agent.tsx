@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { Loader2, RotateCcw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { live, snapshot, type AskResponse, type InvestigateResponse } from "@/lib/api";
 import { cn, human } from "@/lib/utils";
 import type { EngineState } from "@/hooks/use-engine";
@@ -90,28 +90,43 @@ export function AgentSection({ engine }: { engine: { state: EngineState; health:
                   <span className={cn(t.flag.includes("disagree") ? "text-pencil" : "text-ink")}>{human(t.label)}</span>
                   {t.flag.includes("disagree") ? ". They disagree, and the engine's answer stands; the disagreement is kept for a person to read." : ", independently."}
                 </p>
-                {/* The agent's rounds arrive one after another, in the order it
-                    made them (after Magic UI's Animated List). Keyed on the
-                    record and a replay counter, so choosing a record or pressing
-                    replay plays its investigation again from the first call. */}
-                <div className="rounded-md border border-rule bg-paper">
+                {/* The recorded investigation replayed as a terminal session
+                    (after Magic UI's Terminal and Typing Animation): each tool
+                    call is typed, then its result appears, in the order the
+                    agent made them. Keyed on the record and a replay counter,
+                    so choosing a record or pressing replay starts it again. */}
+                <div className="overflow-hidden rounded-md border border-rule bg-paper font-mono">
                   <div className="flex items-center justify-between border-b border-rule px-3 py-2 text-xs text-graphite">
-                    <span className="font-mono uppercase tracking-[0.12em]">Trace</span>
+                    <span className="flex items-center gap-3">
+                      <span aria-hidden className="flex gap-1.5">
+                        <i className="h-2.5 w-2.5 rounded-full bg-redink/70" />
+                        <i className="h-2.5 w-2.5 rounded-full bg-pencil/70" />
+                        <i className="h-2.5 w-2.5 rounded-full bg-settled/70" />
+                      </span>
+                      investigate.py · {t.entity_id}
+                    </span>
                     <button onClick={() => setReplay((n) => n + 1)}
                       className="inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 hover:bg-ink/[0.05] hover:text-ink">
                       <RotateCcw size={12} aria-hidden /> Replay
                     </button>
                   </div>
-                  <ol key={`${t.entity_id}-${replay}`} className="space-y-3 px-3 py-3">
+                  <ol key={`${t.entity_id}-${replay}`} className="space-y-3 px-3 py-3 text-[0.8rem]">
                     {t.steps.map((s, i) => (
                       <motion.li key={s.n} className="grid grid-cols-[1.5rem_minmax(0,1fr)] gap-2"
-                        initial={reduce ? false : { opacity: 0, y: 8, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ type: "spring", stiffness: 350, damping: 40, delay: i * 0.45 }}>
+                        initial={reduce ? false : { opacity: 0, y: 6 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25, delay: i * STEP_GAP }}>
                         <span className="num text-graphite">{s.n}</span>
-                        <div>
-                          <code className="break-all font-mono text-[0.8rem] text-tick">{s.call}</code>
-                          <div className="text-graphite">{s.result}</div>
+                        <div className="min-w-0">
+                          <code className="block break-all text-tick">
+                            <span aria-hidden className="text-graphite">$ </span>
+                            <Typed text={s.call} delay={reduce ? 0 : i * STEP_GAP} instant={!!reduce} />
+                          </code>
+                          <motion.div className="font-sans text-sm text-graphite"
+                            initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }}
+                            transition={{ duration: 0.3, delay: i * STEP_GAP + typingTime(s.call) }}>
+                            {s.result}
+                          </motion.div>
                         </div>
                       </motion.li>
                     ))}
@@ -135,6 +150,38 @@ export function AgentSection({ engine }: { engine: { state: EngineState; health:
         </TabPanel>
       </div>
     </section>
+  );
+}
+
+// Seconds between one recorded tool call and the next in the replay.
+const STEP_GAP = 1.1;
+const CHAR_MS = 14;
+const typingTime = (text: string) => Math.min(text.length * CHAR_MS, 700) / 1000;
+
+/**
+ * Types `text` out after `delay` seconds. The full text is in the DOM for
+ * screen readers from the start; only the visible part grows.
+ */
+function Typed({ text, delay, instant }: { text: string; delay: number; instant: boolean }) {
+  const [n, setN] = useState(instant ? text.length : 0);
+  useEffect(() => {
+    if (instant) { setN(text.length); return; }
+    setN(0);
+    const per = Math.max(4, Math.min(CHAR_MS, 700 / Math.max(text.length, 1)));
+    let timer = 0;
+    const start = window.setTimeout(() => {
+      timer = window.setInterval(() => setN((k) => {
+        if (k >= text.length) { clearInterval(timer); return k; }
+        return k + 1;
+      }), per);
+    }, delay * 1000);
+    return () => { clearTimeout(start); clearInterval(timer); };
+  }, [text, delay, instant]);
+  return (
+    <>
+      <span className="sr-only">{text}</span>
+      <span aria-hidden>{text.slice(0, n)}{n < text.length && n > 0 && <span className="animate-pulse">▍</span>}</span>
+    </>
   );
 }
 

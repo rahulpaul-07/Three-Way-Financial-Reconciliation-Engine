@@ -11,7 +11,7 @@ import { REPO } from "./links";
 const axis = { fontSize: 11, fill: "rgb(var(--graphite))" };
 const grid = <CartesianGrid stroke="rgb(var(--rule))" strokeOpacity={0.6} vertical={false} />;
 const tipStyle = {
-  contentStyle: { background: "rgb(var(--sheet))", border: "1px solid rgb(var(--rule))", borderRadius: 5, fontSize: 12 },
+  contentStyle: { background: "rgb(var(--sheet))", border: "1px solid rgb(var(--rule))", borderRadius: 8, fontSize: 12 },
   labelStyle: { color: "rgb(var(--ink))" }, itemStyle: { color: "rgb(var(--ink))" },
 };
 
@@ -49,7 +49,7 @@ function Facts({ meta, b }: { meta: Meta | null; b: Benchmarks }) {
     ["Python versions in CI", "3.10–3.13"],
   ];
   return (
-    <Panel className="flex h-full flex-col" title="Checked on every push">
+    <Panel spotlight className="flex h-full flex-col" title="Checked on every push">
       <dl className="space-y-4">
         {rows.map(([k, v]) => (
           <div key={k} className="flex items-baseline justify-between gap-4 border-b border-rule/60 pb-3">
@@ -73,7 +73,7 @@ function Variance({ b }: { b: Benchmarks }) {
   const allPerfect = b.variance.every((v) => v.accuracy === 1);
   const data = b.variance.map((v) => ({ seed: v.seed, rate: +(v.resolution_rate * 100).toFixed(2) }));
   return (
-    <Panel className="h-full" title={`${b.variance.length} batches, different data, same answer`}
+    <Panel spotlight className="h-full" title={`${b.variance.length} batches, different data, same answer`}
       note={<>Resolution rate {pct(mean)} ± {pct(sd)} across seeds. Classification accuracy was {allPerfect ? "100% on every one" : "not perfect on every seed"}.
         The spread comes from how many captures happen to fall after the last payout, which are correctly left unsettled.</>}>
       <div className="h-56">
@@ -110,7 +110,7 @@ function Degradation({ b }: { b: Benchmarks }) {
   }));
   const worst = b.stress_compound[b.stress_compound.length - 1];
   return (
-    <Panel className="h-full" title="Where it breaks"
+    <Panel spotlight className="h-full" title="Where it breaks"
       note={<>More defects of the same kinds change nothing: each record is classified on its own. Defects that land on the same record do degrade it,
         to {pct(worst.accuracy)} at {pct(worst.defect_rate, 0)} density, because the taxonomy allows one label per record and some records have two.</>}>
       <div className="h-56">
@@ -143,7 +143,7 @@ function Throughput({ b }: { b: Benchmarks }) {
   const rates = b.throughput.map((t) => t.entities_per_second);
   const lo = Math.min(...rates), hi = Math.max(...rates);
   return (
-    <Panel className="h-full" title="Speed at scale"
+    <Panel spotlight className="h-full" title="Speed at scale"
       note={<>Thousands of entities reconciled per second, by batch size: between {int(lo / 1000)}k and {int(hi / 1000)}k here, so cost grows
         roughly linearly with the batch. The largest, {int(last.entities)} entities, took {(last.reconcile_seconds * 1000).toFixed(0)} ms.
         These are single timings on the build machine and vary from run to run; they are not a controlled benchmark.</>}>
@@ -155,7 +155,7 @@ function Throughput({ b }: { b: Benchmarks }) {
               label={{ value: "entities in batch", position: "insideBottomRight", offset: -2, fontSize: 11, fill: "rgb(var(--graphite))" }} />
             <YAxis tick={axis} tickLine={false} axisLine={false} width={48} unit="k" />
             <Tooltip {...tipStyle} cursor={{ fill: "rgb(var(--ink) / 0.05)" }} formatter={(v: number) => [`${v}k per second`, "Rate"]} />
-            <Bar dataKey="rate" fill="rgb(var(--ink))" fillOpacity={0.75} radius={[2, 2, 0, 0]} />
+            <Bar dataKey="rate" fill="rgb(var(--tick))" fillOpacity={0.85} radius={[2, 2, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -167,7 +167,7 @@ function BlindSpots({ b }: { b: Benchmarks }) {
   const { before, after } = b.detection;
   const classes = Object.keys(after.by_class).sort();
   return (
-    <Panel className="h-full" title="Blind spots, found and closed"
+    <Panel spotlight className="h-full" title="Blind spots, found and closed"
       note={<>An adversarial generator planted nine defect classes the engine had no rule for. Before, four passed silently; the duplicate bank credit reconciled the same money twice
         without a flag. Each now has a rule and a test. Because the rules were written after seeing these defects, this batch no longer measures generalisation for them; that needs a fresh round of unseen classes.</>}>
       <div className="grid grid-cols-2 gap-4 text-sm">

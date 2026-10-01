@@ -19,7 +19,7 @@ export function SectionHeader({ folio, eyebrow, title, children, className }: {
           <span aria-hidden className="h-px w-8 bg-rule" />
           {eyebrow}
         </p>
-        <h2 className="mt-4 text-balance text-[clamp(2rem,3.6vw,3rem)] font-medium leading-[1.05] tracking-[-0.015em]">{title}</h2>
+        <h2 className="mt-4 text-balance text-[clamp(2rem,3.6vw,3rem)] font-semibold leading-[1.05] tracking-[-0.035em]">{title}</h2>
       </div>
       {children && <div className="max-w-prose text-[1.05rem] leading-relaxed text-graphite lg:pb-1">{children}</div>}
     </BlurFade>

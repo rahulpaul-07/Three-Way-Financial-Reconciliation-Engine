@@ -1,12 +1,20 @@
 import { cn } from "@/lib/utils";
 
 /** A leaf of the ledger: a titled region with an optional note beneath. */
-export function Panel({ title, note, action, className, children }: {
+/** Tracks the pointer for the `.spotlight` glow (after Magic UI's Magic Card). */
+function moveSpotlight(e: React.PointerEvent<HTMLElement>) {
+  const r = e.currentTarget.getBoundingClientRect();
+  e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
+  e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
+}
+
+export function Panel({ title, note, action, className, spotlight, children }: {
   title?: React.ReactNode; note?: React.ReactNode; action?: React.ReactNode;
-  className?: string; children: React.ReactNode;
+  className?: string; spotlight?: boolean; children: React.ReactNode;
 }) {
   return (
-    <section className={cn("rounded-lg border border-rule bg-sheet p-5 sm:p-6", className)}>
+    <section onPointerMove={spotlight ? moveSpotlight : undefined}
+      className={cn("rounded-lg border border-rule bg-sheet p-5 sm:p-6", spotlight && "spotlight", className)}>
       {(title || action) && (
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
           {title && <h3 className="text-lg font-semibold leading-tight">{title}</h3>}

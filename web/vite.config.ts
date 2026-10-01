@@ -14,6 +14,11 @@ export default defineConfig({
   },
   build: {
     sourcemap: false,
+    // Never inline fonts. Vite inlines any asset under 4 kB, which put the
+    // small Cyrillic, Greek and symbol subsets into the render-blocking CSS
+    // as base64 (13 kB the page never uses). As separate files the browser
+    // fetches a subset only when the page contains those characters.
+    assetsInlineLimit: (file: string) => (/\.woff2?$/.test(file) ? false : undefined),
     chunkSizeWarningLimit: 700,
     // No manualChunks. The chart sections are loaded with dynamic import()
     // (App.tsx, workbench.tsx), so recharts and d3 land in their own chunks
