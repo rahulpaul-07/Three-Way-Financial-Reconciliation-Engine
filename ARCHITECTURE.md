@@ -375,7 +375,7 @@ measured against that key rather than asserted.
 | Across 12 independent batches | 92.7% ± 0.4% resolved, 100.0% ± 0.0% accuracy |
 | Throughput | roughly 230,000-290,000 entities/sec from 141 to 5,022 (single runs), linear cost |
 | Unseen defect classes | 26/26 planted records flagged (15/26 before the fixes in NOTES.md) |
-| Tests | 167, verified by mutation |
+| Tests | 179; the original suite and the tests added on 2026-09-29 were verified by mutation, the 2026-09-22 round was not |
 
 Confidence intervals are Wilson score rather than the normal approximation,
 which behaves badly near 1 and on small samples.
