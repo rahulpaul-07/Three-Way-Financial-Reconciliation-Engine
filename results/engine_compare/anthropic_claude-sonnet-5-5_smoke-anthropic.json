@@ -1,0 +1,291 @@
+{
+  "meta": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-5-5",
+    "failover": false,
+    "data": "data",
+    "seed": 42,
+    "engines": [
+      "loop",
+      "langgraph"
+    ],
+    "reps": 1,
+    "rep_offset": 0,
+    "exception_ids": [
+      "pay_000056",
+      "pay_000042"
+    ],
+    "sessions": [
+      {
+        "started_utc": "2026-10-08T19:24:17+00:00",
+        "git_head": "29f029e",
+        "command": "scripts\\live_engine_compare.py run --provider anthropic --model claude-sonnet-5-5 --label smoke-anthropic --limit 2 --reps 1",
+        "resumed_records": 0,
+        "status": "complete",
+        "calls": 12,
+        "retries": 0
+      }
+    ],
+    "cap": 600,
+    "status": "complete",
+    "ledger_calls_total": 29
+  },
+  "records": [
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "pay_000056",
+      "entity_type": "txn",
+      "matcher_classification": "net_arithmetic_error",
+      "classification": "net_arithmetic_error",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.71,
+      "seconds_excluding_waits": 7.71,
+      "retries": 0,
+      "input_tokens": 7498,
+      "output_tokens": 741,
+      "call_errors": [],
+      "reasoning": "pay_000056 has gross 750.00, fee 0.00 and GST 0.00, so net should be 750.00. The recorded net is 760.00, which is 10.00 too high. The fee matches the UPI rule (expected 0, actual 0). The order ORD4055 is 750.00 and paid, and the payment has no refund or other related rows. Settlement setl_0001 sums correctly to its reported total, but that check does not show which net figure the payout used for this member.",
+      "analyst_note": "Check whether setl_0001 paid out 750.00 or 760.00 for pay_000056. If it paid 760.00, the merchant was overpaid by 10.00 and that needs recovering. If it paid 750.00, correct the net field on the transaction record. Also look for the source of the 10.00 difference, such as a data entry or ingestion error.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000056"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 2,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4055"
+          },
+          "ok": true,
+          "summary": "order ORD4055 found"
+        },
+        {
+          "n": 3,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4055"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4055"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0001"
+          },
+          "ok": true,
+          "summary": "15 members sum to 21272.37, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "pay_000042",
+      "entity_type": "txn",
+      "matcher_classification": "net_arithmetic_error",
+      "classification": "net_arithmetic_error",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 8.02,
+      "seconds_excluding_waits": 8.02,
+      "retries": 0,
+      "input_tokens": 7500,
+      "output_tokens": 806,
+      "call_errors": [],
+      "reasoning": "pay_000042 is a single captured UPI payment of 499.00 for ORD4041, and the order is paid at 499.00. The fee of 0.00 matches the UPI rule (expected 0, delta 0), so the fee is not the cause. The recorded net of 509.00 is therefore 10.00 more than gross with no fee or GST to explain it. Settlement setl_0008 sums correctly across its 14 members (2040667 paise), but that check does not show whether this row was counted at 499.00 or 509.00.",
+      "analyst_note": "Check the gateway's raw record for pay_000042 to see where the net of 509.00 came from. Then check whether setl_0008 and the bank credit include 499.00 or 509.00 for this payment. If 509.00 was paid out, the merchant was over-credited by 10.00 and that needs correcting. If 499.00 was paid out, only the net field is wrong and needs fixing.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000042"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 2,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4041"
+          },
+          "ok": true,
+          "summary": "order ORD4041 found"
+        },
+        {
+          "n": 3,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4041"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4041"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0008"
+          },
+          "ok": true,
+          "summary": "14 members sum to 20406.67, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "pay_000056",
+      "entity_type": "txn",
+      "matcher_classification": "net_arithmetic_error",
+      "classification": "net_arithmetic_error",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.3,
+      "seconds_excluding_waits": 7.3,
+      "retries": 0,
+      "input_tokens": 7467,
+      "output_tokens": 704,
+      "call_errors": [],
+      "reasoning": "The fee matches the UPI rule at 0 expected and 0 actual. ORD4055 is a single captured payment of 750.00 that matches the order amount, with no refunds or other related rows. With zero fee and zero GST, net should equal gross at 750.00, but the record shows 760.00, which is 10.00 too high. Settlement setl_0001 sums correctly to its reported total, so the settlement check doesn't show whether the 10.00 overstatement was actually paid out.",
+      "analyst_note": "Check the source of the 760.00 net on pay_000056 in the gateway data or ledger. Then check whether setl_0001 used 750.00 or 760.00 for this member, and whether the bank credit shows an extra 10.00. If the extra 10.00 was paid out, recover it. Otherwise correct the net figure on the record.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000056"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 2,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4055"
+          },
+          "ok": true,
+          "summary": "order ORD4055 found"
+        },
+        {
+          "n": 3,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4055"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4055"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0001"
+          },
+          "ok": true,
+          "summary": "15 members sum to 21272.37, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "pay_000042",
+      "entity_type": "txn",
+      "matcher_classification": "net_arithmetic_error",
+      "classification": "net_arithmetic_error",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.71,
+      "seconds_excluding_waits": 7.71,
+      "retries": 0,
+      "input_tokens": 7506,
+      "output_tokens": 748,
+      "call_errors": [],
+      "reasoning": "The record shows gross 499.00 with fee 0.00 and GST 0.00, but net 509.00, which is 10.00 more than gross. The fee check confirms the 0 fee is correct for UPI. The order ORD4041 is 499.00 and paid, and the only related row is this payment. So nothing explains the extra 10.00. Settlement setl_0008 has 14 members that sum to its reported total, but that doesn't show whether this row's net is 499.00 or 509.00.",
+      "analyst_note": "Check the gateway's raw net for pay_000042. It should be 499.00. Then confirm which net figure setl_0008 used and whether the bank credit for that settlement includes an extra 10.00. If the ledger net is wrong, correct it. If the settlement or bank credit includes the extra 10.00, treat it as an overpayment.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000042"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 2,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4041"
+          },
+          "ok": true,
+          "summary": "order ORD4041 found"
+        },
+        {
+          "n": 3,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4041"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4041"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0008"
+          },
+          "ok": true,
+          "summary": "14 members sum to 20406.67, matching the report"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,3581 @@
+{
+  "meta": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-5-5",
+    "failover": false,
+    "data": "data",
+    "seed": 42,
+    "engines": [
+      "loop",
+      "langgraph"
+    ],
+    "reps": 2,
+    "rep_offset": 0,
+    "exception_ids": [
+      "pay_000056",
+      "pay_000042",
+      "GAP_BEFORE_BNK000014",
+      "ORD4088",
+      "ORD4026",
+      "ORD4034",
+      "ORD4051",
+      "ORD4054",
+      "ORD4089",
+      "ORD4038",
+      "BNK000004",
+      "BNK000006",
+      "setl_0010"
+    ],
+    "sessions": [
+      {
+        "started_utc": "2026-10-08T19:25:45+00:00",
+        "git_head": "29f029e",
+        "command": "scripts\\live_engine_compare.py run --provider anthropic --model claude-sonnet-5-5 --label full-sonnet --reps 2",
+        "resumed_records": 0,
+        "status": "complete",
+        "calls": 180,
+        "retries": 0
+      }
+    ],
+    "cap": 600,
+    "status": "complete",
+    "ledger_calls_total": 209
+  },
+  "records": [
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "pay_000056",
+      "entity_type": "txn",
+      "matcher_classification": "net_arithmetic_error",
+      "classification": "net_arithmetic_error",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.5,
+      "seconds_excluding_waits": 7.5,
+      "retries": 0,
+      "input_tokens": 7424,
+      "output_tokens": 677,
+      "call_errors": [],
+      "reasoning": "The fee check shows the UPI fee is 0 and matches the rule. ORD4055 is a single paid order of 750.00, with no refund or other related rows. The record's net of 760.00 therefore doesn't equal 750.00 \u2212 0 \u2212 0, so net is overstated by 10.00. Settlement setl_0001 is internally consistent (15 members match the reported total), but that check doesn't show whether this row counted 750.00 or 760.00.",
+      "analyst_note": "Check whether pay_000056 was counted at 750.00 or 760.00 in setl_0001 and in the bank credit. If 760.00 was used, 10.00 was overpaid and needs recovery. If 750.00 was used, correct the net field on the ledger or gateway row.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000056"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 2,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4055"
+          },
+          "ok": true,
+          "summary": "order ORD4055 found"
+        },
+        {
+          "n": 3,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4055"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4055"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0001"
+          },
+          "ok": true,
+          "summary": "15 members sum to 21272.37, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "pay_000042",
+      "entity_type": "txn",
+      "matcher_classification": "net_arithmetic_error",
+      "classification": "net_arithmetic_error",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 8.22,
+      "seconds_excluding_waits": 8.22,
+      "retries": 0,
+      "input_tokens": 7517,
+      "output_tokens": 833,
+      "call_errors": [],
+      "reasoning": "Order ORD4041 is 499.00 and paid by UPI. It has one gateway row, pay_000042, with gross 499.00. The fee check shows the expected UPI fee is 0 and the actual fee is 0, so the fee is correct. Gross minus fee minus GST is 499.00, but the recorded net is 509.00, which is 10.00 too high. Settlement setl_0008 has 14 members that sum to its reported total. That check doesn't show whether this row was counted at 499.00 or 509.00.",
+      "analyst_note": "Find out why pay_000042 has a net of 509.00 when gross, fee and GST give 499.00. Check the gateway's raw net field and the setl_0008 payout line for this transaction. If the settlement paid 509.00, 10.00 was overpaid. If it paid 499.00, the 509.00 net is a data or calculation error to correct at the source.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4041"
+          },
+          "ok": true,
+          "summary": "order ORD4041 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4041"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4041"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000042"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0008"
+          },
+          "ok": true,
+          "summary": "14 members sum to 20406.67, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "GAP_BEFORE_BNK000014",
+      "entity_type": "statement_gap",
+      "matcher_classification": "missing_bank_row",
+      "classification": "missing_bank_row",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 4,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        1,
+        2,
+        1,
+        0
+      ],
+      "seconds": 8.44,
+      "seconds_excluding_waits": 8.44,
+      "retries": 0,
+      "input_tokens": 9396,
+      "output_tokens": 682,
+      "call_errors": [],
+      "reasoning": "The balance continuity check shows a gap of 7227.29 (722729 paise) before BNK000014, so a statement line is missing. Settlement setl_0010 totals exactly 7227.29 with a payout date of 2026-08-21. Its 9 payment members sum to that total, so the settlement is internally consistent. No single gateway transaction matches the amount, so the gap is the settlement's bank credit, which is absent from the statement.",
+      "analyst_note": "I did not confirm that the missing line is the setl_0010 credit. Check that the bank statement export is complete around 2026-08-21 and fetch the missing line from the bank. Confirm the credit for setl_0010 (7227.29) was actually received, and that it was not reversed or held. Re-run the continuity check once the line is restored.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_balance_continuity",
+          "tool_input": {
+            "bank_txn_id": "BNK000014"
+          },
+          "ok": false,
+          "summary": "balance gap of 7227.29: a statement line is missing before this row"
+        },
+        {
+          "n": 2,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 722729,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "1 settlement(s) totalling 7227.29 (+/- 0p)"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 722729,
+            "tolerance_paise": 0
+          },
+          "ok": false,
+          "summary": "0 transaction(s) near 7227.29"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0010"
+          },
+          "ok": true,
+          "summary": "9 members sum to 7227.29, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "ORD4088",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 5,
+      "tool_calls": 5,
+      "tool_calls_per_round": [
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      "seconds": 8.47,
+      "seconds_excluding_waits": 8.47,
+      "retries": 0,
+      "input_tokens": 12361,
+      "output_tokens": 578,
+      "call_errors": [],
+      "reasoning": "ORD4088 (750.00, card, paid) has one captured payment, pay_000089, in settlement setl_0000. The fee rule check confirmed a real overcharge: the actual fee is 20.00 against the card rule of 15.00, a delta of 5.00. That is too large to be rounding drift. Settlement setl_0000 is internally consistent, since its 8 members sum to the reported 10044.01. The fee overcharge therefore comes from the fee applied to this transaction, not from a settlement composition problem.",
+      "analyst_note": "Check the gateway fee charged on pay_000089 against the merchant's contracted card rate. Look for a surcharge, a different card type such as international or premium, or a misapplied fee tier. If the 5.00 is an overcharge, request a fee correction or refund from the gateway.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4088"
+          },
+          "ok": true,
+          "summary": "order ORD4088 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4088"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4088"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000089"
+          },
+          "ok": false,
+          "summary": "fee 20.00 exceeds the card rule of 15.00 by 5.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0000"
+          },
+          "ok": true,
+          "summary": "8 members sum to 10044.01, matching the report"
+        },
+        {
+          "n": 4,
+          "tool": "json",
+          "tool_input": {
+            "classification": "fee_mismatch"
+          },
+          "ok": false,
+          "summary": "tool 'json' is not available"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "ORD4026",
+      "entity_type": "order",
+      "matcher_classification": "missing_payment",
+      "classification": "missing_payment",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 2,
+      "tool_calls": 3,
+      "tool_calls_per_round": [
+        3,
+        0
+      ],
+      "seconds": 5.9,
+      "seconds_excluding_waits": 5.9,
+      "retries": 0,
+      "input_tokens": 4565,
+      "output_tokens": 583,
+      "call_errors": [],
+      "reasoning": "ORD4026 is in the ledger as paid, 349.00 by UPI, but find_related_transactions found no gateway rows referencing it. The amount search returned 12 transactions near 349.00 (pay_000115, pay_000103, pay_000093 and others, truncated). Those carry no confirmed link to this order, so I can't attribute any of them to it.",
+      "analyst_note": "Check whether any of the near-amount gateway transactions, such as pay_000115 and pay_000103, was captured on 2026-08-10 around 17:35 with a missing or wrong order reference. Check the UPI VPA and payer details, and look for a bank or settlement credit for 349.00. If no payment is found, the ledger's 'paid' status is unsupported, so confirm with the merchant and correct the order status or refund the customer.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4026"
+          },
+          "ok": true,
+          "summary": "order ORD4026 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4026"
+          },
+          "ok": false,
+          "summary": "no gateway rows reference ORD4026"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 34900,
+            "tolerance_paise": 100
+          },
+          "ok": true,
+          "summary": "12 transaction(s) near 349.00"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "ORD4034",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "unexplained",
+      "agreed": false,
+      "resolved": false,
+      "terminated": "step_limit",
+      "model_calls": 5,
+      "tool_calls": 6,
+      "tool_calls_per_round": [
+        2,
+        1,
+        1,
+        1,
+        1
+      ],
+      "seconds": 6.34,
+      "seconds_excluding_waits": 6.34,
+      "retries": 0,
+      "input_tokens": 12475,
+      "output_tokens": 333,
+      "call_errors": [],
+      "reasoning": "",
+      "analyst_note": "investigation did not conclude within 5 steps; escalated for manual review",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "order ORD4034 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4034"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000035"
+          },
+          "ok": false,
+          "summary": "fee 13.50 exceeds the netbanking rule of 12.00 by 1.50"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0003"
+          },
+          "ok": true,
+          "summary": "12 members sum to 4504.05, matching the report"
+        },
+        {
+          "n": 5,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "order ORD4034 found"
+        },
+        {
+          "n": 6,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "order ORD4034 found"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "ORD4051",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 3,
+      "tool_calls_per_round": [
+        2,
+        1,
+        0
+      ],
+      "seconds": 5.8,
+      "seconds_excluding_waits": 5.8,
+      "retries": 0,
+      "input_tokens": 6949,
+      "output_tokens": 478,
+      "call_errors": [],
+      "reasoning": "ORD4051 is a paid UPI order for 199.00. It has one captured payment, pay_000052, for 199.00 gross, linked to setl_0006. check_fee_against_rule shows an actual fee of 225 paise against a UPI rule of 0 paise. The 225 paise delta is a real overcharge, not rounding drift.",
+      "analyst_note": "Find out why the gateway charged a 2.25 fee on UPI transaction pay_000052. Check whether the merchant's fee plan or MDR config has changed, or whether the transaction was mis-tagged as another payment method. If the fee is wrong, ask the gateway to refund it. Also check that the net amount in setl_0006 reflects the 2.25 deduction.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4051"
+          },
+          "ok": true,
+          "summary": "order ORD4051 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4051"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4051"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000052"
+          },
+          "ok": false,
+          "summary": "fee 2.25 exceeds the upi rule of 0.00 by 2.25"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "ORD4054",
+      "entity_type": "order",
+      "matcher_classification": "missing_payment",
+      "classification": "missing_payment",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.34,
+      "seconds_excluding_waits": 7.34,
+      "retries": 0,
+      "input_tokens": 7201,
+      "output_tokens": 712,
+      "call_errors": [],
+      "reasoning": "ORD4054 is a paid UPI order for 3999.00 in the ledger. `find_related_transactions` found no gateway rows referencing it, including refunds and chargebacks. `search_transactions_by_amount` returned one transaction near that amount, pay_000107. The fee check on it only showed the fee matches the UPI rule, and nothing shows it belongs to ORD4054.",
+      "analyst_note": "Check whether pay_000107 is tied to a different order or has no order reference. If it has no reference, it may be the payment for ORD4054 and the order id was lost. If it belongs to another order, ORD4054 is marked paid with no gateway payment. In that case, check the gateway dashboard and UPI logs for 2026-08-16 around 20:42, and ask whether the order status was set manually or by a webhook.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4054"
+          },
+          "ok": true,
+          "summary": "order ORD4054 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4054"
+          },
+          "ok": false,
+          "summary": "no gateway rows reference ORD4054"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 399900,
+            "tolerance_paise": 100
+          },
+          "ok": true,
+          "summary": "1 transaction(s) near 3999.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000107"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "ORD4089",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "unexplained",
+      "agreed": false,
+      "resolved": false,
+      "terminated": "step_limit",
+      "model_calls": 5,
+      "tool_calls": 6,
+      "tool_calls_per_round": [
+        2,
+        1,
+        1,
+        1,
+        1
+      ],
+      "seconds": 6.28,
+      "seconds_excluding_waits": 6.28,
+      "retries": 0,
+      "input_tokens": 12410,
+      "output_tokens": 337,
+      "call_errors": [],
+      "reasoning": "",
+      "analyst_note": "investigation did not conclude within 5 steps; escalated for manual review",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4089"
+          },
+          "ok": true,
+          "summary": "order ORD4089 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4089"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4089"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000090"
+          },
+          "ok": false,
+          "summary": "fee 8.25 exceeds the card rule of 6.00 by 2.25"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0007"
+          },
+          "ok": true,
+          "summary": "12 members sum to 20463.62, matching the report"
+        },
+        {
+          "n": 5,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4089"
+          },
+          "ok": true,
+          "summary": "order ORD4089 found"
+        },
+        {
+          "n": 6,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4089"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4089"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "ORD4038",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 4,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        2,
+        1,
+        1,
+        0
+      ],
+      "seconds": 6.84,
+      "seconds_excluding_waits": 6.84,
+      "retries": 0,
+      "input_tokens": 9656,
+      "output_tokens": 497,
+      "call_errors": [],
+      "reasoning": "ORD4038 is a paid order with a single captured payment, pay_000039, for 899.00, which is in setl_0008. The fee rule check confirmed a real overcharge: the actual fee is 17.00 against the netbanking rule of 12.00, a delta of 5.00. That is too large to be rounding drift. setl_0008's composition reconciles (14 members matching the reported total), so the extra fee is not explained by a settlement error.",
+      "analyst_note": "Check the gateway fee schedule and the merchant's contract for netbanking, including any bank-specific or tiered pricing that could justify 17.00. If none applies, raise the 5.00 overcharge with the gateway and request a fee correction or refund for pay_000039.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4038"
+          },
+          "ok": true,
+          "summary": "order ORD4038 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4038"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4038"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000039"
+          },
+          "ok": false,
+          "summary": "fee 17.00 exceeds the netbanking rule of 12.00 by 5.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0008"
+          },
+          "ok": true,
+          "summary": "14 members sum to 20406.67, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "BNK000004",
+      "entity_type": "bank_row",
+      "matcher_classification": "orphan_bank_credit",
+      "classification": "split_settlement",
+      "agreed": false,
+      "resolved": true,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 5,
+      "tool_calls_per_round": [
+        3,
+        2,
+        0
+      ],
+      "seconds": 11.78,
+      "seconds_excluding_waits": 11.78,
+      "retries": 0,
+      "input_tokens": 8386,
+      "output_tokens": 1334,
+      "call_errors": [],
+      "reasoning": "No single settlement (0 results within \u00b11.00 of 4200.00) and no single gateway transaction matches the 4200.00 credit. `find_subset_summing_to` found five transactions (pay_000120, pay_000032, pay_000064, pay_000060, pay_000054) that sum exactly to 4200.00. The same set came back when I narrowed the window to 1 day. `check_balance_continuity` shows no missing statement line, so the credit is a real, unreported grouping of payments.",
+      "analyst_note": "Optional confirmation: check that the five transactions are not already linked to another settlement or bank credit. The subset match comes from a pool of 40, so it could be coincidental. The 'RZP879978972' reference in the bank description wasn't searchable with the available tools, so check it against the gateway payout report.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 420000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 settlement(s) totalling 4200.00 (+/- 100p)"
+        },
+        {
+          "n": 2,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 420000,
+            "on_date": "2026-08-13",
+            "window_days": 5,
+            "max_terms": 5
+          },
+          "ok": true,
+          "summary": "5 transaction(s) sum exactly to 4200.00"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 420000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 transaction(s) near 4200.00"
+        },
+        {
+          "n": 4,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 420000,
+            "on_date": "2026-08-13",
+            "window_days": 1,
+            "max_terms": 6
+          },
+          "ok": true,
+          "summary": "5 transaction(s) sum exactly to 4200.00"
+        },
+        {
+          "n": 5,
+          "tool": "check_balance_continuity",
+          "tool_input": {
+            "bank_txn_id": "BNK000004"
+          },
+          "ok": true,
+          "summary": "balance is continuous"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "BNK000006",
+      "entity_type": "bank_row",
+      "matcher_classification": "orphan_bank_credit",
+      "classification": "split_settlement",
+      "agreed": false,
+      "resolved": true,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 5,
+      "tool_calls_per_round": [
+        3,
+        2,
+        0
+      ],
+      "seconds": 11.14,
+      "seconds_excluding_waits": 11.14,
+      "retries": 0,
+      "input_tokens": 7980,
+      "output_tokens": 1041,
+      "call_errors": [],
+      "reasoning": "No single settlement totals 2750.00 (\u00b11.00), so the credit is not a normal one-to-one payout. find_subset_summing_to found that pay_000060 (1200.50), pay_000068 (1200.00) and pay_000079 (349.50) sum exactly to 2750.00 within the window. The balance continuity check shows no gap, so no statement line is missing and the credit is real. It is most likely an unreported grouped payout of those three payments.",
+      "analyst_note": "The subset match is arithmetic only. I did not confirm that the gateway batched these three payments under UTR RZP813326083. If you want certainty, check the Razorpay payout report for that UTR and confirm the three payments are not already tied to other settlements.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 275000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 settlement(s) totalling 2750.00 (+/- 100p)"
+        },
+        {
+          "n": 2,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 275000,
+            "on_date": "2026-08-16",
+            "window_days": 3,
+            "max_terms": 5
+          },
+          "ok": true,
+          "summary": "3 transaction(s) sum exactly to 2750.00"
+        },
+        {
+          "n": 3,
+          "tool": "check_balance_continuity",
+          "tool_input": {
+            "bank_txn_id": "BNK000006"
+          },
+          "ok": true,
+          "summary": "balance is continuous"
+        },
+        {
+          "n": 4,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 120050,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "4 transaction(s) near 1200.50"
+        },
+        {
+          "n": 5,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 34950,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "2 transaction(s) near 349.50"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 1,
+      "entity_id": "setl_0010",
+      "entity_type": "settlement",
+      "matcher_classification": "settlement_not_in_bank",
+      "classification": "settlement_not_in_bank",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 2,
+      "tool_calls": 3,
+      "tool_calls_per_round": [
+        3,
+        0
+      ],
+      "seconds": 7.02,
+      "seconds_excluding_waits": 7.02,
+      "retries": 0,
+      "input_tokens": 4746,
+      "output_tokens": 821,
+      "call_errors": [],
+      "reasoning": "The settlement is internally consistent. check_settlement_composition shows 9 payment members summing to 7227.29, which matches the reported total. search_settlements_by_amount finds only setl_0010 at that amount, so no other settlement could explain the credit. check_payout_window says 2026-08-21 is the start of the plausible window (2026-08-21 to 2026-08-25), so the credit may only be late, but no statement line has been found for UTR RZP366888337.",
+      "analyst_note": "Search the bank statement for UTR RZP366888337 and for a 7227.29 credit from 2026-08-21 to 2026-08-25. If nothing appears by 2026-08-25, raise it with the gateway as a missing payout. Also check whether a statement line is missing by running a running-balance continuity check on the bank rows around 2026-08-21. The window is still open, so this may only be a timing delay.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0010"
+          },
+          "ok": true,
+          "summary": "9 members sum to 7227.29, matching the report"
+        },
+        {
+          "n": 2,
+          "tool": "check_payout_window",
+          "tool_input": {
+            "settlement_id": "setl_0010",
+            "observed_date": "2026-08-21"
+          },
+          "ok": true,
+          "summary": "2026-08-21 is inside the plausible window 2026-08-21..2026-08-25"
+        },
+        {
+          "n": 3,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 722729,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "1 settlement(s) totalling 7227.29 (+/- 0p)"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "pay_000056",
+      "entity_type": "txn",
+      "matcher_classification": "net_arithmetic_error",
+      "classification": "net_arithmetic_error",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.48,
+      "seconds_excluding_waits": 7.48,
+      "retries": 0,
+      "input_tokens": 7451,
+      "output_tokens": 722,
+      "call_errors": [],
+      "reasoning": "The fee check shows the UPI fee is correctly 0 (expected 0, actual 0). Order ORD4055 is 750.00 and paid, and pay_000056 is its only gateway row, with gross 750.00. The recorded net of 760.00 is 10.00 more than gross with no fee or GST, so the net field is wrong. Settlement setl_0001 ties out to its 15 members at 21272.37, so the 10.00 excess may be built into the settlement total.",
+      "analyst_note": "Check the gateway's raw record for pay_000056 to see whether net should be 750.00. Then check whether setl_0001 and the bank credit include the extra 10.00, which would be an overpayment. If they do, correct the net, or recover the 10.00 if it was paid out.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000056"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 2,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4055"
+          },
+          "ok": true,
+          "summary": "order ORD4055 found"
+        },
+        {
+          "n": 3,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4055"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4055"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0001"
+          },
+          "ok": true,
+          "summary": "15 members sum to 21272.37, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "pay_000042",
+      "entity_type": "txn",
+      "matcher_classification": "net_arithmetic_error",
+      "classification": "net_arithmetic_error",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.5,
+      "seconds_excluding_waits": 7.5,
+      "retries": 0,
+      "input_tokens": 7405,
+      "output_tokens": 712,
+      "call_errors": [],
+      "reasoning": "The record shows gross 499.00, fee 0.00 and GST 0.00, but net 509.00, which is 10.00 above gross. ORD4041 is paid at 499.00 by UPI, and pay_000042 is its only gateway row. The fee check confirms the 0 fee is correct for UPI. So the gross, fee and order all agree, and only the net figure is wrong. Settlement setl_0008 has 14 members that sum to its reported total. That check does not show whether this row was counted at 499.00 or 509.00.",
+      "analyst_note": "Find out where the net of 509.00 came from on pay_000042. It should be 499.00. Check the gateway's raw settlement line for this transaction to see whether setl_0008 paid out 499.00 or 509.00 for it. If it paid 509.00, the merchant was overpaid by 10.00 and that needs recovering. If it paid 499.00, this is only a data error in the net field.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4041"
+          },
+          "ok": true,
+          "summary": "order ORD4041 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4041"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4041"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000042"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0008"
+          },
+          "ok": true,
+          "summary": "14 members sum to 20406.67, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "GAP_BEFORE_BNK000014",
+      "entity_type": "statement_gap",
+      "matcher_classification": "missing_bank_row",
+      "classification": "missing_bank_row",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 4,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        1,
+        2,
+        1,
+        0
+      ],
+      "seconds": 9.84,
+      "seconds_excluding_waits": 9.84,
+      "retries": 0,
+      "input_tokens": 9377,
+      "output_tokens": 679,
+      "call_errors": [],
+      "reasoning": "The balance continuity check shows a gap of 7227.29 (722729 paise) before BNK000014, so a statement line is missing. Settlement setl_0010 totals exactly 7227.29, with a payout date of 2026-08-21. Its composition check confirmed that its 9 payment members sum to that figure. This fits the missing line being the bank credit for setl_0010. No single gateway transaction matches the amount. I have not confirmed that the gap is that credit.",
+      "analyst_note": "Get the original bank statement or a re-export covering the period before BNK000014. Check whether a credit of 7227.29 around 2026-08-21 is present, and whether it matches setl_0010. If it is present, the ingestion dropped the line, so re-import it. If it is absent, raise it with the bank or gateway as a payout that was settled but never credited.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_balance_continuity",
+          "tool_input": {
+            "bank_txn_id": "BNK000014"
+          },
+          "ok": false,
+          "summary": "balance gap of 7227.29: a statement line is missing before this row"
+        },
+        {
+          "n": 2,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 722729,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "1 settlement(s) totalling 7227.29 (+/- 0p)"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 722729,
+            "tolerance_paise": 0
+          },
+          "ok": false,
+          "summary": "0 transaction(s) near 7227.29"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0010"
+          },
+          "ok": true,
+          "summary": "9 members sum to 7227.29, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "ORD4088",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 5,
+      "tool_calls": 5,
+      "tool_calls_per_round": [
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      "seconds": 7.78,
+      "seconds_excluding_waits": 7.78,
+      "retries": 0,
+      "input_tokens": 12361,
+      "output_tokens": 537,
+      "call_errors": [],
+      "reasoning": "ORD4088 (750.00, card, paid) has one captured payment, pay_000089, in settlement setl_0000. The fee rule check shows a fee of 20.00 against the card rule of 15.00. That is a 5.00 overcharge, too large to be rounding drift. setl_0000 sums correctly to its 8 members (10044.01), so the extra fee is not a composition error.",
+      "analyst_note": "Ask the gateway or acquirer why pay_000089 was charged 20.00 instead of 15.00. Check for a fee tier change, a surcharge, or a mis-tagged payment method such as international or premium card. If the overcharge is confirmed, claim the 5.00 back.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4088"
+          },
+          "ok": true,
+          "summary": "order ORD4088 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4088"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4088"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000089"
+          },
+          "ok": false,
+          "summary": "fee 20.00 exceeds the card rule of 15.00 by 5.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0000"
+          },
+          "ok": true,
+          "summary": "8 members sum to 10044.01, matching the report"
+        },
+        {
+          "n": 5,
+          "tool": "json",
+          "tool_input": {
+            "classification": "fee_mismatch"
+          },
+          "ok": false,
+          "summary": "tool 'json' is not available"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "ORD4026",
+      "entity_type": "order",
+      "matcher_classification": "missing_payment",
+      "classification": "missing_payment",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.74,
+      "seconds_excluding_waits": 7.74,
+      "retries": 0,
+      "input_tokens": 7385,
+      "output_tokens": 745,
+      "call_errors": [],
+      "reasoning": "ORD4026 is a paid UPI order for 349.00, but find_related_transactions found no gateway rows referencing it. An amount search for exactly 349.00 returned 10 gateway transactions (e.g. pay_000115, pay_000103, pay_000093). The tools did not link any of them to ORD4026, so I can't attribute any of them to this order.",
+      "analyst_note": "Check whether any of the 349.00 gateway transactions (pay_000115, pay_000103, pay_000093, pay_000069, pay_000105, pay_000057, pay_000037, pay_000001, pay_000101, pay_000005) carries a missing or wrong order reference and was made around 2026-08-10 17:35. Otherwise, confirm with the UPI gateway whether the payment ever completed. If it did not, the ledger status 'paid' is wrong and the order should be corrected or the customer contacted.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4026"
+          },
+          "ok": true,
+          "summary": "order ORD4026 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4026"
+          },
+          "ok": false,
+          "summary": "no gateway rows reference ORD4026"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 34900,
+            "tolerance_paise": 100
+          },
+          "ok": true,
+          "summary": "12 transaction(s) near 349.00"
+        },
+        {
+          "n": 4,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 34900,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "10 transaction(s) near 349.00"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "ORD4034",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 5,
+      "tool_calls": 5,
+      "tool_calls_per_round": [
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      "seconds": 7.97,
+      "seconds_excluding_waits": 7.97,
+      "retries": 0,
+      "input_tokens": 12475,
+      "output_tokens": 555,
+      "call_errors": [],
+      "reasoning": "The order has one captured payment, pay_000035, for 349.50, which matches the ledger amount. The fee rule check confirmed a real overcharge: the actual fee is 13.50 against the netbanking rule of 12.00, a delta of 1.50. That is too large to be rounding drift. Settlement setl_0003 sums correctly to its reported total, so the extra fee is not explained by a composition error.",
+      "analyst_note": "Ask the gateway or acquirer why pay_000035 was charged 13.50 instead of 12.00 for netbanking. Check whether the merchant's fee schedule or contract has changed, or whether a surcharge or tax was applied incorrectly. If the overcharge is confirmed, claim the 1.50 back.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "order ORD4034 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4034"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000035"
+          },
+          "ok": false,
+          "summary": "fee 13.50 exceeds the netbanking rule of 12.00 by 1.50"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0003"
+          },
+          "ok": true,
+          "summary": "12 members sum to 4504.05, matching the report"
+        },
+        {
+          "n": 5,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "order ORD4034 found"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "ORD4051",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 3,
+      "tool_calls_per_round": [
+        2,
+        1,
+        0
+      ],
+      "seconds": 6.06,
+      "seconds_excluding_waits": 6.06,
+      "retries": 0,
+      "input_tokens": 6949,
+      "output_tokens": 506,
+      "call_errors": [],
+      "reasoning": "ORD4051 (199.00, upi, paid) has one related gateway row, pay_000052. It is captured for 199.00 gross and sits in setl_0006. The fee check shows an actual fee of 225 paise against a upi rule of 0 paise, a delta of 225 paise. That is a real overcharge, not rounding drift. No refund or chargeback rows exist that could explain it.",
+      "analyst_note": "Ask the gateway or acquirer why a 2.25 fee was charged on a upi payment, which should carry no fee. Check whether the merchant's fee plan or the gateway's rate card changed. Also confirm the setl_0006 payout was reduced by this fee. If the fee is wrong, request a refund of it.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4051"
+          },
+          "ok": true,
+          "summary": "order ORD4051 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4051"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4051"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000052"
+          },
+          "ok": false,
+          "summary": "fee 2.25 exceeds the upi rule of 0.00 by 2.25"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "ORD4054",
+      "entity_type": "order",
+      "matcher_classification": "missing_payment",
+      "classification": "missing_payment",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 6.92,
+      "seconds_excluding_waits": 6.92,
+      "retries": 0,
+      "input_tokens": 7212,
+      "output_tokens": 672,
+      "call_errors": [],
+      "reasoning": "Order ORD4054 is marked paid in the ledger (3999.00, UPI), but find_related_transactions found no gateway rows referencing it. A search by amount returned one transaction near 3999.00, pay_000107. The only check run on it was a fee check, which matched the UPI rule and didn't show which order it belongs to. So no tool has confirmed it as this order's payment.",
+      "analyst_note": "Look up pay_000107 in the gateway and see whether it belongs to another order or has no order reference. If it has no order reference, it may be ORD4054's payment with a lost reference. If it belongs to another order, or if there is no gateway record, the ledger shows a paid order with no money received. Check the UPI collect/VPA logs for 2026-08-16 around 20:42, and consider reverting the order's paid status.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4054"
+          },
+          "ok": true,
+          "summary": "order ORD4054 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4054"
+          },
+          "ok": false,
+          "summary": "no gateway rows reference ORD4054"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 399900,
+            "tolerance_paise": 100
+          },
+          "ok": true,
+          "summary": "1 transaction(s) near 3999.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000107"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "ORD4089",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 3,
+      "tool_calls_per_round": [
+        2,
+        1,
+        0
+      ],
+      "seconds": 5.94,
+      "seconds_excluding_waits": 5.94,
+      "retries": 0,
+      "input_tokens": 6939,
+      "output_tokens": 518,
+      "call_errors": [],
+      "reasoning": "ORD4089 (299.99, card, paid) has one gateway row, pay_000090. It was captured for 299.99 and assigned to setl_0007. The fee rule check shows an actual fee of 825 paise against the card rule of 600 paise, a delta of 225 paise. That is too large to be rounding drift. No refund or other rows exist that could explain the extra fee.",
+      "analyst_note": "Find out why pay_000090 was charged 8.25 instead of 6.00. Check for a wrong fee tier or a non-standard card type, such as international or corporate. Also check for a surcharge or tax applied in error. Look at the merchant's fee agreement and the gateway fee breakdown. If the overcharge is confirmed, raise it with the gateway for correction or credit. Also check how it affects the net amount in setl_0007.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4089"
+          },
+          "ok": true,
+          "summary": "order ORD4089 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4089"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4089"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000090"
+          },
+          "ok": false,
+          "summary": "fee 8.25 exceeds the card rule of 6.00 by 2.25"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "ORD4038",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 4,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        2,
+        1,
+        1,
+        0
+      ],
+      "seconds": 6.43,
+      "seconds_excluding_waits": 6.43,
+      "retries": 0,
+      "input_tokens": 9656,
+      "output_tokens": 470,
+      "call_errors": [],
+      "reasoning": "ORD4038 is a paid order with one captured payment, pay_000039 for 899.00. The fee rule check confirmed a real discrepancy: the fee charged was 17.00 against the netbanking rule of 12.00, an excess of 5.00. That is well beyond rounding drift. Settlement setl_0008 reconciles to its 14 members, so the extra fee is not a composition error.",
+      "analyst_note": "Raise the 5.00 netbanking fee overcharge on pay_000039 with the gateway or acquirer. Check whether a fee-rate change or a mis-tagged payment method applied. Ask for a fee correction or credit.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4038"
+          },
+          "ok": true,
+          "summary": "order ORD4038 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4038"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4038"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000039"
+          },
+          "ok": false,
+          "summary": "fee 17.00 exceeds the netbanking rule of 12.00 by 5.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0008"
+          },
+          "ok": true,
+          "summary": "14 members sum to 20406.67, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "BNK000004",
+      "entity_type": "bank_row",
+      "matcher_classification": "orphan_bank_credit",
+      "classification": "orphan_bank_credit",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 5,
+      "tool_calls_per_round": [
+        3,
+        2,
+        0
+      ],
+      "seconds": 10.64,
+      "seconds_excluding_waits": 10.64,
+      "retries": 0,
+      "input_tokens": 8207,
+      "output_tokens": 1228,
+      "call_errors": [],
+      "reasoning": "No settlement totals 4200.00 (\u00b11.00), and no single gateway transaction is near that amount. The balance is continuous at BNK000004 (gap 0), so this is not a missing-statement-line artefact. A 5-transaction subset (pay_000120, pay_000032, pay_000064, pay_000060, pay_000054) does sum to 4200.00 within a \u00b13-day window. It is not a confirmed grouping: no \u22643-term subset exists on the same day, and those transactions have no tool-confirmed link to this credit or to each other as one settlement. The UTR column is empty.",
+      "analyst_note": "Check the Razorpay payout report or dashboard for reference RZP879978972 to see which settlement or payout it belongs to. Confirm whether pay_000120, pay_000032, pay_000064, pay_000060 and pay_000054 were settled together in an unreported batch. If they were not, treat the 4200.00 as an unidentified inbound credit (COLLECT) and raise it with the gateway or bank.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 420000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 settlement(s) totalling 4200.00 (+/- 100p)"
+        },
+        {
+          "n": 2,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 420000,
+            "on_date": "2026-08-13",
+            "window_days": 3,
+            "max_terms": 5
+          },
+          "ok": true,
+          "summary": "5 transaction(s) sum exactly to 4200.00"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 420000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 transaction(s) near 4200.00"
+        },
+        {
+          "n": 4,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 420000,
+            "on_date": "2026-08-13",
+            "window_days": 0,
+            "max_terms": 3
+          },
+          "ok": false,
+          "summary": "no subset of <= 3 transactions in the 0-day window sums to 4200.00"
+        },
+        {
+          "n": 5,
+          "tool": "check_balance_continuity",
+          "tool_input": {
+            "bank_txn_id": "BNK000004"
+          },
+          "ok": true,
+          "summary": "balance is continuous"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "BNK000006",
+      "entity_type": "bank_row",
+      "matcher_classification": "orphan_bank_credit",
+      "classification": "split_settlement",
+      "agreed": false,
+      "resolved": true,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 11.11,
+      "seconds_excluding_waits": 11.11,
+      "retries": 0,
+      "input_tokens": 7838,
+      "output_tokens": 1099,
+      "call_errors": [],
+      "reasoning": "No settlement totals 2750.00 (\u00b11.00), and no single gateway transaction is near that amount. `find_subset_summing_to` found three transactions in the window that sum exactly to 2750.00: pay_000120 (1200.00), pay_000060 (1200.50) and pay_000079 (349.50). So the NEFT credit is most likely an unreported grouping of these payments, paid as one lump.",
+      "analyst_note": "Before closing, confirm that pay_000120, pay_000060 and pay_000079 are not already matched to other settlements or bank credits. A lookup of pay_000120 as an order id returned no gateway rows, so I couldn't link the payments to orders. Also confirm that gateway payout reference RZP813326083 lists these three payments. The subset match came from a pool of 65 transactions, so it could be coincidence.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 275000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 settlement(s) totalling 2750.00 (+/- 100p)"
+        },
+        {
+          "n": 2,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 275000,
+            "on_date": "2026-08-16",
+            "window_days": 5,
+            "max_terms": 5
+          },
+          "ok": true,
+          "summary": "3 transaction(s) sum exactly to 2750.00"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 275000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 transaction(s) near 2750.00"
+        },
+        {
+          "n": 4,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "pay_000120"
+          },
+          "ok": false,
+          "summary": "no gateway rows reference pay_000120"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 1,
+      "entity_id": "setl_0010",
+      "entity_type": "settlement",
+      "matcher_classification": "settlement_not_in_bank",
+      "classification": "settlement_not_in_bank",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 9.46,
+      "seconds_excluding_waits": 9.46,
+      "retries": 0,
+      "input_tokens": 7840,
+      "output_tokens": 989,
+      "call_errors": [],
+      "reasoning": "setl_0010 is internally consistent. Its 9 payment members sum to 7227.29, which matches the reported total. No other settlement has that amount, and no group of up to 4 transactions in the 3-day window around 2026-08-21 sums to it. So there is no sign of a duplicate or an unreported grouping that could explain the missing bank line. The payout date of 2026-08-21 is the start of the plausible window (2026-08-21 to 2026-08-25), so the credit could still be in transit, but nothing confirms that.",
+      "analyst_note": "Check the bank statement for UTR RZP366888337 and a 7227.29 credit through 2026-08-25. If it hasn't arrived by then, raise it with the gateway as a missing payout. If the statement has a gap, run a running-balance continuity check on the bank rows around 2026-08-21 to see whether a statement line is missing. I couldn't do that check because I have no bank transaction id.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0010"
+          },
+          "ok": true,
+          "summary": "9 members sum to 7227.29, matching the report"
+        },
+        {
+          "n": 2,
+          "tool": "check_payout_window",
+          "tool_input": {
+            "settlement_id": "setl_0010",
+            "observed_date": "2026-08-21"
+          },
+          "ok": true,
+          "summary": "2026-08-21 is inside the plausible window 2026-08-21..2026-08-25"
+        },
+        {
+          "n": 3,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 722729,
+            "on_date": "2026-08-21",
+            "window_days": 3
+          },
+          "ok": false,
+          "summary": "no subset of <= 4 transactions in the 3-day window sums to 7227.29"
+        },
+        {
+          "n": 4,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 722729,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "1 settlement(s) totalling 7227.29 (+/- 0p)"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "pay_000056",
+      "entity_type": "txn",
+      "matcher_classification": "net_arithmetic_error",
+      "classification": "net_arithmetic_error",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.08,
+      "seconds_excluding_waits": 7.08,
+      "retries": 0,
+      "input_tokens": 7445,
+      "output_tokens": 642,
+      "call_errors": [],
+      "reasoning": "The fee check confirms the 0.00 fee is correct for UPI. The order ORD4055 and its only gateway row both show a gross of 750.00, so there is no refund, duplicate or amount mismatch. The recorded net of 760.00 is therefore 10.00 more than gross minus fee and GST. Settlement setl_0001 is internally consistent, with 15 members summing to its reported total. That doesn't show whether this row's net was 750.00 or 760.00 when it was included.",
+      "analyst_note": "Find out why pay_000056 has a net of 760.00 when gross is 750.00 and fee and GST are 0.00. The net should be 750.00. Check the gateway's raw record and the amount actually paid out for this transaction in setl_0001 and the bank credit. If the 10.00 excess was really paid, the merchant was overpaid. If not, correct the net field.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000056"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 2,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4055"
+          },
+          "ok": true,
+          "summary": "order ORD4055 found"
+        },
+        {
+          "n": 3,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4055"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4055"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0001"
+          },
+          "ok": true,
+          "summary": "15 members sum to 21272.37, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "pay_000042",
+      "entity_type": "txn",
+      "matcher_classification": "net_arithmetic_error",
+      "classification": "net_arithmetic_error",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.56,
+      "seconds_excluding_waits": 7.56,
+      "retries": 0,
+      "input_tokens": 7430,
+      "output_tokens": 717,
+      "call_errors": [],
+      "reasoning": "The UPI fee of 0 matches the rule (check_fee_against_rule, delta 0). Order ORD4041 is paid at 499.00 and has one captured payment row of 499.00, so gross is correct and there is no refund or duplicate. With fee 0 and GST 0, net should equal gross at 499.00, but the record shows 509.00. That is a 10.00 arithmetic error in the net field. Settlement setl_0008 has 14 members that sum to its reported total, but the tool did not say whether pay_000042 was counted at 499 or 509.",
+      "analyst_note": "Check how net was computed for pay_000042 in the ledger or gateway export. Then check whether setl_0008 includes this payment at 499.00 or at 509.00, and whether the bank credit for setl_0008 is over by 10.00. Correct the net field if the error is confined to the record.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000042"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 2,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4041"
+          },
+          "ok": true,
+          "summary": "order ORD4041 found"
+        },
+        {
+          "n": 3,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4041"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4041"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0008"
+          },
+          "ok": true,
+          "summary": "14 members sum to 20406.67, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "GAP_BEFORE_BNK000014",
+      "entity_type": "statement_gap",
+      "matcher_classification": "missing_bank_row",
+      "classification": "missing_bank_row",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 4,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        1,
+        2,
+        1,
+        0
+      ],
+      "seconds": 8.07,
+      "seconds_excluding_waits": 8.07,
+      "retries": 0,
+      "input_tokens": 9386,
+      "output_tokens": 707,
+      "call_errors": [],
+      "reasoning": "check_balance_continuity shows a gap of 7227.29 (722729 paise) before BNK000014, so a statement line is missing. search_settlements_by_amount found exactly one settlement for that amount, setl_0010 (payout date 2026-08-21), and check_settlement_composition confirms its 9 payment members sum to 7227.29. The missing line is therefore most likely the bank credit for setl_0010. No tool has confirmed that, because the bank-side row itself was not located.",
+      "analyst_note": "Get the original bank statement for the period around 2026-08-21 and confirm whether a credit of 7227.29 for setl_0010 was actually received. If it was, the export or ingestion dropped the line, so re-import it. If it was not, raise a payout-not-received query with the gateway or bank. Also confirm the credit's position is consistent with the running balance before BNK000014.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_balance_continuity",
+          "tool_input": {
+            "bank_txn_id": "BNK000014"
+          },
+          "ok": false,
+          "summary": "balance gap of 7227.29: a statement line is missing before this row"
+        },
+        {
+          "n": 2,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 722729,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "1 settlement(s) totalling 7227.29 (+/- 0p)"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 722729,
+            "tolerance_paise": 0
+          },
+          "ok": false,
+          "summary": "0 transaction(s) near 7227.29"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0010"
+          },
+          "ok": true,
+          "summary": "9 members sum to 7227.29, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "ORD4088",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 5,
+      "tool_calls": 5,
+      "tool_calls_per_round": [
+        2,
+        1,
+        1,
+        1,
+        0
+      ],
+      "seconds": 9.56,
+      "seconds_excluding_waits": 9.56,
+      "retries": 0,
+      "input_tokens": 12361,
+      "output_tokens": 544,
+      "call_errors": [],
+      "reasoning": "ORD4088 (750.00, card, paid) has one captured payment, pay_000089, in settlement setl_0000. The fee rule check confirmed the fee is 20.00 against an expected 15.00, a real 5.00 overcharge and not rounding drift. The settlement composition is consistent (8 members sum to the reported 10044.01), so the extra fee is not explained by a settlement error.",
+      "analyst_note": "Check the gateway fee schedule or contract for a card rate change or surcharge that explains the extra 5.00 on pay_000089. If none applies, raise a fee overcharge claim with the gateway and recover the 5.00. Also check whether other card transactions in setl_0000 show the same delta.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4088"
+          },
+          "ok": true,
+          "summary": "order ORD4088 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4088"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4088"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000089"
+          },
+          "ok": false,
+          "summary": "fee 20.00 exceeds the card rule of 15.00 by 5.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0000"
+          },
+          "ok": true,
+          "summary": "8 members sum to 10044.01, matching the report"
+        },
+        {
+          "n": 4,
+          "tool": "json",
+          "tool_input": {
+            "classification": "fee_mismatch"
+          },
+          "ok": false,
+          "summary": "tool 'json' is not available"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "ORD4026",
+      "entity_type": "order",
+      "matcher_classification": "missing_payment",
+      "classification": "missing_payment",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 9.36,
+      "seconds_excluding_waits": 9.36,
+      "retries": 0,
+      "input_tokens": 7386,
+      "output_tokens": 792,
+      "call_errors": [],
+      "reasoning": "The ledger shows ORD4026 as paid for 349.00 by UPI. find_related_transactions found no gateway rows that reference the order. An exact-amount search returned 10 gateway transactions of 349.00 (e.g. pay_000115, pay_000103, pay_000093), but no tool result links any of them to ORD4026. I can't assign any of them to this order.",
+      "analyst_note": "Check the 10 gateway transactions of exactly 349.00 (pay_000115, 000103, 000093, 000069, 000105, 000057, 000037, 000001, 000101, 000005). Look for one with no order reference, a UPI method, and a timestamp near 2026-08-10T17:35. If one fits, the order reference was dropped on the gateway side. If none fits, the order was marked paid without a real payment, so confirm with the gateway and the bank whether the customer was actually charged.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4026"
+          },
+          "ok": true,
+          "summary": "order ORD4026 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4026"
+          },
+          "ok": false,
+          "summary": "no gateway rows reference ORD4026"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 34900,
+            "tolerance_paise": 100
+          },
+          "ok": true,
+          "summary": "12 transaction(s) near 349.00"
+        },
+        {
+          "n": 4,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 34900,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "10 transaction(s) near 349.00"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "ORD4034",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "unexplained",
+      "agreed": false,
+      "resolved": false,
+      "terminated": "step_limit",
+      "model_calls": 5,
+      "tool_calls": 6,
+      "tool_calls_per_round": [
+        2,
+        1,
+        1,
+        1,
+        1
+      ],
+      "seconds": 6.36,
+      "seconds_excluding_waits": 6.36,
+      "retries": 0,
+      "input_tokens": 12475,
+      "output_tokens": 333,
+      "call_errors": [],
+      "reasoning": "",
+      "analyst_note": "investigation did not conclude within 5 steps; escalated for manual review",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "order ORD4034 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4034"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000035"
+          },
+          "ok": false,
+          "summary": "fee 13.50 exceeds the netbanking rule of 12.00 by 1.50"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0003"
+          },
+          "ok": true,
+          "summary": "12 members sum to 4504.05, matching the report"
+        },
+        {
+          "n": 5,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "order ORD4034 found"
+        },
+        {
+          "n": 6,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "order ORD4034 found"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "ORD4051",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 3,
+      "tool_calls_per_round": [
+        2,
+        1,
+        0
+      ],
+      "seconds": 7.31,
+      "seconds_excluding_waits": 7.31,
+      "retries": 0,
+      "input_tokens": 6949,
+      "output_tokens": 511,
+      "call_errors": [],
+      "reasoning": "ORD4051 (199.00, upi, paid) has one gateway row, pay_000052. It is captured for 199.00 gross and sits in setl_0006, with no refund or chargeback. check_fee_against_rule confirmed the fee is 225 paise against a upi rule of 0 paise, so it is a genuine 2.25 overcharge and not rounding drift.",
+      "analyst_note": "Ask the gateway or acquirer why a 2.25 fee was charged on a upi transaction, where the rule says 0.00. Check whether the merchant's fee plan or the method tagging is wrong, for example a card or other method recorded as upi. Then request a fee refund or correct the rule. Also check that setl_0006's net payout reflects the 2.25 deduction.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4051"
+          },
+          "ok": true,
+          "summary": "order ORD4051 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4051"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4051"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000052"
+          },
+          "ok": false,
+          "summary": "fee 2.25 exceeds the upi rule of 0.00 by 2.25"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "ORD4054",
+      "entity_type": "order",
+      "matcher_classification": "missing_payment",
+      "classification": "missing_payment",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.05,
+      "seconds_excluding_waits": 7.05,
+      "retries": 0,
+      "input_tokens": 7186,
+      "output_tokens": 654,
+      "call_errors": [],
+      "reasoning": "ORD4054 is a paid UPI order for 3999.00, but find_related_transactions found no gateway rows that reference it. An amount search found one transaction near 3999.00 (pay_000107). Nothing in the tool results ties that transaction to ORD4054. The fee check on it only showed the UPI fee matches the rule, and that says nothing about which order it belongs to.",
+      "analyst_note": "Check whether pay_000107 is already linked to a different order. If it is unlinked, confirm it was made around 2026-08-16 20:42 and matches the customer, and then attach it to ORD4054. If it belongs to another order, ORD4054 is marked paid with no payment. In that case, check the gateway and UPI logs for the customer's payment, and look at the order status and fulfilment.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4054"
+          },
+          "ok": true,
+          "summary": "order ORD4054 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4054"
+          },
+          "ok": false,
+          "summary": "no gateway rows reference ORD4054"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 399900,
+            "tolerance_paise": 100
+          },
+          "ok": true,
+          "summary": "1 transaction(s) near 3999.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000107"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "ORD4089",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 3,
+      "tool_calls_per_round": [
+        2,
+        1,
+        0
+      ],
+      "seconds": 5.52,
+      "seconds_excluding_waits": 5.52,
+      "retries": 0,
+      "input_tokens": 6939,
+      "output_tokens": 478,
+      "call_errors": [],
+      "reasoning": "ORD4089 (299.99, card, paid) has one gateway row, pay_000090, which is captured for 299.99 and sits in setl_0007. check_fee_against_rule reports an actual fee of 825 paise against the card rule of 600 paise, a delta of 225 paise. That is too large to be rounding drift, and there are no refund or other related rows that would explain it.",
+      "analyst_note": "Confirm the fee charged on pay_000090 against the merchant's card pricing agreement. Look for a surcharge, such as an international or premium card, or a mis-tagged payment method. If the gateway over-charged, raise a fee correction with the gateway for the 2.25 difference. Also check how setl_0007 net-settled this transaction.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4089"
+          },
+          "ok": true,
+          "summary": "order ORD4089 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4089"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4089"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000090"
+          },
+          "ok": false,
+          "summary": "fee 8.25 exceeds the card rule of 6.00 by 2.25"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "ORD4038",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 4,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        2,
+        1,
+        1,
+        0
+      ],
+      "seconds": 6.77,
+      "seconds_excluding_waits": 6.77,
+      "retries": 0,
+      "input_tokens": 9656,
+      "output_tokens": 505,
+      "call_errors": [],
+      "reasoning": "ORD4038 (899.00, netbanking) has one captured payment, pay_000039, in settlement setl_0008. The fee rule check confirmed a fee of 17.00 against an expected 12.00, an overcharge of 5.00. This is a real discrepancy and not rounding drift. setl_0008's composition does reconcile (14 members, total matches), so the extra fee was actually deducted and is not a settlement arithmetic problem.",
+      "analyst_note": "Raise the 5.00 excess fee on pay_000039 with the gateway and check whether the merchant's netbanking pricing or the fee rule was changed. If the 17.00 fee is not valid, request a fee refund or adjustment. Also check whether there are any related fee adjustments or credits.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4038"
+          },
+          "ok": true,
+          "summary": "order ORD4038 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4038"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4038"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000039"
+          },
+          "ok": false,
+          "summary": "fee 17.00 exceeds the netbanking rule of 12.00 by 5.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0008"
+          },
+          "ok": true,
+          "summary": "14 members sum to 20406.67, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "BNK000004",
+      "entity_type": "bank_row",
+      "matcher_classification": "orphan_bank_credit",
+      "classification": "orphan_bank_credit",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 4,
+      "tool_calls": 6,
+      "tool_calls_per_round": [
+        3,
+        2,
+        1,
+        0
+      ],
+      "seconds": 16.72,
+      "seconds_excluding_waits": 16.72,
+      "retries": 0,
+      "input_tokens": 12425,
+      "output_tokens": 1944,
+      "call_errors": [],
+      "reasoning": "No settlement totals 4200.00 (search_settlements_by_amount returned 0). No single gateway transaction is near 4200.00 either. The reference RZP879978972 in the description matches no order (get_order found none). The bank balance is continuous, so no statement line is missing. find_subset_summing_to did find five transactions (pay_000120, pay_000032, pay_000064, pay_000060, pay_000054) that sum to 4200.00 in a 3-day window. But no 4-term subset exists in a 1-day window, and nothing links those transactions to one settlement or to this credit. With a pool of 40 and amounts on a 50-paise grid, t",
+      "analyst_note": "Check whether Razorpay paid out pay_000120, pay_000032, pay_000064, pay_000060 and pay_000054 as one unreported grouping. Use the Razorpay payout/settlement report or the UTR for RZP879978972. If they were, reclassify as split_settlement. If not, treat the 4200.00 ACH COLLECT credit as an unidentified inbound credit and find its payer.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 420000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 settlement(s) totalling 4200.00 (+/- 100p)"
+        },
+        {
+          "n": 2,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 420000,
+            "on_date": "2026-08-13",
+            "window_days": 3,
+            "max_terms": 5
+          },
+          "ok": true,
+          "summary": "5 transaction(s) sum exactly to 4200.00"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 420000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 transaction(s) near 4200.00"
+        },
+        {
+          "n": 4,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 420000,
+            "on_date": "2026-08-13",
+            "window_days": 1,
+            "max_terms": 4
+          },
+          "ok": false,
+          "summary": "no subset of <= 4 transactions in the 1-day window sums to 4200.00"
+        },
+        {
+          "n": 5,
+          "tool": "check_balance_continuity",
+          "tool_input": {
+            "bank_txn_id": "BNK000004"
+          },
+          "ok": true,
+          "summary": "balance is continuous"
+        },
+        {
+          "n": 6,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "RZP879978972"
+          },
+          "ok": false,
+          "summary": "no such order RZP879978972"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "BNK000006",
+      "entity_type": "bank_row",
+      "matcher_classification": "orphan_bank_credit",
+      "classification": "split_settlement",
+      "agreed": false,
+      "resolved": true,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 6,
+      "tool_calls_per_round": [
+        3,
+        3,
+        0
+      ],
+      "seconds": 23.18,
+      "seconds_excluding_waits": 23.18,
+      "retries": 0,
+      "input_tokens": 8203,
+      "output_tokens": 1342,
+      "call_errors": [],
+      "reasoning": "No single settlement matches 2750.00 (search_settlements_by_amount returned 0), and no single gateway transaction is near that amount. find_subset_summing_to found that pay_000060 (1200.50), pay_000068 (1200.00) and pay_000079 (349.50) sum exactly to 2750.00 within the window. That makes the credit an unreported grouping of three UPI payments. The fee check matched the UPI rule for all three, with zero fee and zero delta.",
+      "analyst_note": "Optional confirmation: check that the three payments aren't already tied to another settlement or bank credit. I didn't verify that, and I went over the 5-call limit. The exact three-term sum is strong evidence but could be a coincidence in a pool of 57 transactions.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 275000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 settlement(s) totalling 2750.00 (+/- 100p)"
+        },
+        {
+          "n": 2,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 275000,
+            "on_date": "2026-08-16",
+            "window_days": 3,
+            "max_terms": 5
+          },
+          "ok": true,
+          "summary": "3 transaction(s) sum exactly to 2750.00"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 275000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 transaction(s) near 2750.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000060"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 5,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000068"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 6,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000079"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        }
+      ]
+    },
+    {
+      "engine": "loop",
+      "rep": 2,
+      "entity_id": "setl_0010",
+      "entity_type": "settlement",
+      "matcher_classification": "settlement_not_in_bank",
+      "classification": "settlement_not_in_bank",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 4,
+      "tool_calls": 5,
+      "tool_calls_per_round": [
+        3,
+        1,
+        1,
+        0
+      ],
+      "seconds": 10.21,
+      "seconds_excluding_waits": 10.21,
+      "retries": 0,
+      "input_tokens": 10847,
+      "output_tokens": 997,
+      "call_errors": [],
+      "reasoning": "setl_0010 is internally consistent. Its 9 payment members sum to 7227.29, which matches the reported total. The payout date 2026-08-21 is inside the plausible window (08-21 to 08-25), so the credit may only be late. No subset of transactions in a 3-day window sums to 7227.29, so the money is not hiding in an unreported grouping. Only setl_0010 has this amount, so no other settlement could account for it. No bank row could be found for UTR RZP366888337.",
+      "analyst_note": "Look for a bank credit of 7227.29 with UTR RZP366888337 after 2026-08-21. The window runs to 2026-08-25, so the credit may just be late. If nothing has arrived by then, raise it with the gateway as a missing payout. Also confirm the statement isn't missing lines around 2026-08-21. I couldn't run the balance-continuity check because I had no bank transaction ID.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0010"
+          },
+          "ok": true,
+          "summary": "9 members sum to 7227.29, matching the report"
+        },
+        {
+          "n": 2,
+          "tool": "check_payout_window",
+          "tool_input": {
+            "settlement_id": "setl_0010",
+            "observed_date": "2026-08-21"
+          },
+          "ok": true,
+          "summary": "2026-08-21 is inside the plausible window 2026-08-21..2026-08-25"
+        },
+        {
+          "n": 3,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 722729,
+            "on_date": "2026-08-21",
+            "window_days": 3
+          },
+          "ok": false,
+          "summary": "no subset of <= 4 transactions in the 3-day window sums to 7227.29"
+        },
+        {
+          "n": 4,
+          "tool": "check_balance_continuity",
+          "tool_input": {
+            "bank_txn_id": "RZP366888337"
+          },
+          "ok": false,
+          "summary": "no such row RZP366888337"
+        },
+        {
+          "n": 5,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 722729,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "1 settlement(s) totalling 7227.29 (+/- 0p)"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "pay_000056",
+      "entity_type": "txn",
+      "matcher_classification": "net_arithmetic_error",
+      "classification": "net_arithmetic_error",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 4,
+      "tool_calls": 5,
+      "tool_calls_per_round": [
+        3,
+        1,
+        1,
+        0
+      ],
+      "seconds": 8.14,
+      "seconds_excluding_waits": 8.14,
+      "retries": 0,
+      "input_tokens": 10366,
+      "output_tokens": 688,
+      "call_errors": [],
+      "reasoning": "The fee check shows the UPI fee is correctly 0 (expected 0, actual 0). ORD4055 is paid at 750.00 and has a single captured payment of 750.00, so gross matches the order. The recorded net of 760.00 is 10.00 more than gross with no fee or GST to explain it. Settlement setl_0001 sums correctly across its 15 members, but I did not confirm whether this row went in at 750.00 or 760.00. No transaction near 760.00 exists.",
+      "analyst_note": "Check how net 760.00 was computed for pay_000056. With a 0 fee it should equal 750.00. Confirm which figure setl_0001 and the bank credit used for this row. If 760.00 was paid out, there is a 10.00 overpayment to recover.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000056"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 2,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4055"
+          },
+          "ok": true,
+          "summary": "order ORD4055 found"
+        },
+        {
+          "n": 3,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4055"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4055"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0001"
+          },
+          "ok": true,
+          "summary": "15 members sum to 21272.37, matching the report"
+        },
+        {
+          "n": 5,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 76000,
+            "tolerance_paise": 0
+          },
+          "ok": false,
+          "summary": "0 transaction(s) near 760.00"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "pay_000042",
+      "entity_type": "txn",
+      "matcher_classification": "net_arithmetic_error",
+      "classification": "net_arithmetic_error",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.87,
+      "seconds_excluding_waits": 7.87,
+      "retries": 0,
+      "input_tokens": 7508,
+      "output_tokens": 778,
+      "call_errors": [],
+      "reasoning": "The row shows gross 499.00 with fee 0.00 and GST 0.00, but net is 509.00. That is 10.00 more than the gross. The fee check confirms a 0 fee is correct for UPI, and ORD4041 is a single captured payment of 499.00 with no refunds or other rows to explain the extra 10.00. Settlement setl_0008 sums correctly to its reported total, 20406.67, across 14 payment members. The tool did not show whether this row was counted at 499.00 or 509.00, so I can't say if the settlement or payout is overstated.",
+      "analyst_note": "Check the gateway's source record for pay_000042 to see why net is 509.00 instead of 499.00. Then confirm whether setl_0008 and the bank credit used 499.00 or 509.00 for this row. If 509.00 was used, the merchant was overpaid by 10.00 and the net needs correcting.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000042"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        },
+        {
+          "n": 2,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4041"
+          },
+          "ok": true,
+          "summary": "order ORD4041 found"
+        },
+        {
+          "n": 3,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4041"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4041"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0008"
+          },
+          "ok": true,
+          "summary": "14 members sum to 20406.67, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "GAP_BEFORE_BNK000014",
+      "entity_type": "statement_gap",
+      "matcher_classification": "missing_bank_row",
+      "classification": "missing_bank_row",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 5,
+      "tool_calls": 5,
+      "tool_calls_per_round": [
+        1,
+        2,
+        1,
+        1,
+        0
+      ],
+      "seconds": 9.44,
+      "seconds_excluding_waits": 9.44,
+      "retries": 0,
+      "input_tokens": 12229,
+      "output_tokens": 729,
+      "call_errors": [],
+      "reasoning": "The balance continuity check shows a gap of 7227.29 (722729 paise) before BNK000014, so a statement line is missing. Settlement setl_0010 totals exactly 7227.29. Its 9 payment members sum to that amount, and its 2026-08-21 payout date is inside the plausible window. This fits a missing bank row for setl_0010, but no tool has linked the gap to that settlement, so I can't call it explained.",
+      "analyst_note": "Get the full bank statement or a re-export for the period around 2026-08-21 and check whether a 7227.29 credit for setl_0010 is present. If the bank confirms the credit, restore the missing line. If it does not, raise a missing-payout query with the gateway or bank. Don't treat this as resolved until the line is found.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_balance_continuity",
+          "tool_input": {
+            "bank_txn_id": "BNK000014"
+          },
+          "ok": false,
+          "summary": "balance gap of 7227.29: a statement line is missing before this row"
+        },
+        {
+          "n": 2,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 722729,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "1 settlement(s) totalling 7227.29 (+/- 0p)"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 722729,
+            "tolerance_paise": 0
+          },
+          "ok": false,
+          "summary": "0 transaction(s) near 7227.29"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0010"
+          },
+          "ok": true,
+          "summary": "9 members sum to 7227.29, matching the report"
+        },
+        {
+          "n": 5,
+          "tool": "check_payout_window",
+          "tool_input": {
+            "settlement_id": "setl_0010",
+            "observed_date": "2026-08-21"
+          },
+          "ok": true,
+          "summary": "2026-08-21 is inside the plausible window 2026-08-21..2026-08-25"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "ORD4088",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 4,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        2,
+        1,
+        1,
+        0
+      ],
+      "seconds": 6.4,
+      "seconds_excluding_waits": 6.4,
+      "retries": 0,
+      "input_tokens": 9611,
+      "output_tokens": 475,
+      "call_errors": [],
+      "reasoning": "ORD4088 has one captured payment, pay_000089, for 750.00 in setl_0000. The fee check shows 20.00 charged against the card rule of 15.00, so the fee is 5.00 over. That is a real discrepancy, not rounding drift. setl_0000 sums correctly to its 8 members, so the extra fee is not explained by a settlement composition error.",
+      "analyst_note": "Check why pay_000089 was charged 20.00 instead of 15.00. Look at the merchant's fee schedule or any override and at whether the gateway applied the wrong rate. If the overcharge is confirmed, ask the gateway to refund the 5.00 difference.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4088"
+          },
+          "ok": true,
+          "summary": "order ORD4088 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4088"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4088"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000089"
+          },
+          "ok": false,
+          "summary": "fee 20.00 exceeds the card rule of 15.00 by 5.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0000"
+          },
+          "ok": true,
+          "summary": "8 members sum to 10044.01, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "ORD4026",
+      "entity_type": "order",
+      "matcher_classification": "missing_payment",
+      "classification": "missing_payment",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.98,
+      "seconds_excluding_waits": 7.98,
+      "retries": 0,
+      "input_tokens": 7375,
+      "output_tokens": 756,
+      "call_errors": [],
+      "reasoning": "ORD4026 is in the ledger as paid, 349.00 by UPI. find_related_transactions found no gateway rows referencing it. An exact-amount search returned 10 gateway transactions at 349.00 (e.g. pay_000115, pay_000103, pay_000093), but none are tied to this order, so I can't confirm any of them as its payment.",
+      "analyst_note": "Check whether any of the 10 transactions at 349.00 (pay_000115, pay_000103, pay_000093, pay_000069, pay_000105, pay_000057, pay_000037, pay_000001, pay_000101, pay_000005) has no order reference. Look for one created around 2026-08-10 17:35 via UPI. If one fits, the payment may have been recorded without an order ID. If none fits, the order was marked paid with no money received. Check the UPI gateway logs and the order-to-payment callback, and consider holding fulfilment.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4026"
+          },
+          "ok": true,
+          "summary": "order ORD4026 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4026"
+          },
+          "ok": false,
+          "summary": "no gateway rows reference ORD4026"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 34900,
+            "tolerance_paise": 100
+          },
+          "ok": true,
+          "summary": "12 transaction(s) near 349.00"
+        },
+        {
+          "n": 4,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 34900,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "10 transaction(s) near 349.00"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "ORD4034",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 3,
+      "tool_calls_per_round": [
+        2,
+        1,
+        0
+      ],
+      "seconds": 6.16,
+      "seconds_excluding_waits": 6.16,
+      "retries": 0,
+      "input_tokens": 6971,
+      "output_tokens": 504,
+      "call_errors": [],
+      "reasoning": "ORD4034 (349.50, netbanking, paid) has one captured payment, pay_000035, for 349.50 in setl_0003. The amount matches the order. check_fee_against_rule shows a fee of 13.50 against the 12.00 netbanking rule, a delta of 1.50. That is too large to be rounding drift, so it is a real fee discrepancy.",
+      "analyst_note": "Check the gateway fee charged on pay_000035 against the merchant's netbanking pricing agreement. Look for a surcharge, a tax or fee-tier misapplication, or a rule that is out of date. If the gateway overcharged, raise a fee correction or refund request. Also check that setl_0003 nets the 13.50 fee as reported.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "order ORD4034 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4034"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4034"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000035"
+          },
+          "ok": false,
+          "summary": "fee 13.50 exceeds the netbanking rule of 12.00 by 1.50"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "ORD4051",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 3,
+      "tool_calls_per_round": [
+        2,
+        1,
+        0
+      ],
+      "seconds": 5.93,
+      "seconds_excluding_waits": 5.93,
+      "retries": 0,
+      "input_tokens": 6949,
+      "output_tokens": 515,
+      "call_errors": [],
+      "reasoning": "ORD4051 (199.00, UPI, paid) has one gateway row, pay_000052. It was captured for 199.00 and assigned to setl_0006. check_fee_against_rule shows a fee of 225 paise against a UPI rule of 0 paise, so the fee is 225 paise too high. That is a real fee discrepancy, not rounding drift, and there is no refund or other row that would explain it.",
+      "analyst_note": "Find out why pay_000052 was charged a 2.25 fee on a UPI payment. Check whether the gateway fee schedule or MDR configuration changed, or whether the payment was tagged with the wrong method. Then check whether setl_0006 was reduced by the extra fee, and ask the gateway to refund or correct it if the charge is wrong.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4051"
+          },
+          "ok": true,
+          "summary": "order ORD4051 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4051"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4051"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000052"
+          },
+          "ok": false,
+          "summary": "fee 2.25 exceeds the upi rule of 0.00 by 2.25"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "ORD4054",
+      "entity_type": "order",
+      "matcher_classification": "missing_payment",
+      "classification": "missing_payment",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        3,
+        1,
+        0
+      ],
+      "seconds": 7.35,
+      "seconds_excluding_waits": 7.35,
+      "retries": 0,
+      "input_tokens": 7205,
+      "output_tokens": 677,
+      "call_errors": [],
+      "reasoning": "ORD4054 is a paid UPI order for 3999.00. `find_related_transactions` found no gateway rows that reference it. `search_transactions_by_amount` returned one transaction near that amount, pay_000107. No tool has tied pay_000107 to ORD4054, and `check_fee_against_rule` only showed that its UPI fee matches the rule. I can't claim a match from amount alone.",
+      "analyst_note": "Check whether pay_000107 belongs to a different order or has no order reference. If it has no order reference, it may be the payment for ORD4054 with a missing link. If it belongs to another order, ORD4054 has no payment on record, so confirm with the gateway or the customer's UPI reference. Until then, treat the ledger's 'paid' status as unsupported.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4054"
+          },
+          "ok": true,
+          "summary": "order ORD4054 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4054"
+          },
+          "ok": false,
+          "summary": "no gateway rows reference ORD4054"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 399900,
+            "tolerance_paise": 100
+          },
+          "ok": true,
+          "summary": "1 transaction(s) near 3999.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000107"
+          },
+          "ok": true,
+          "summary": "fee matches the upi rule"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "ORD4089",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 3,
+      "tool_calls_per_round": [
+        2,
+        1,
+        0
+      ],
+      "seconds": 5.58,
+      "seconds_excluding_waits": 5.58,
+      "retries": 0,
+      "input_tokens": 6939,
+      "output_tokens": 491,
+      "call_errors": [],
+      "reasoning": "ORD4089 (299.99, card, paid) has one gateway row, pay_000090. It was captured for 299.99 and assigned to setl_0007, with no refund or chargeback rows. check_fee_against_rule says the fee charged was 8.25 against the card rule of 6.00. That is a 2.25 overcharge (825 vs 600 paise), which is too large to be rounding drift.",
+      "analyst_note": "Find out why pay_000090 was charged 8.25 instead of 6.00. Check whether the merchant's fee plan or pricing tier changed, and whether the transaction was a different card type, such as international or corporate, that carries a higher rate. If the higher fee isn't justified, dispute the 2.25 overcharge with the gateway. Also check how setl_0007's net amount was affected.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4089"
+          },
+          "ok": true,
+          "summary": "order ORD4089 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4089"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4089"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000090"
+          },
+          "ok": false,
+          "summary": "fee 8.25 exceeds the card rule of 6.00 by 2.25"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "ORD4038",
+      "entity_type": "order",
+      "matcher_classification": "fee_mismatch",
+      "classification": "fee_mismatch",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 4,
+      "tool_calls": 4,
+      "tool_calls_per_round": [
+        2,
+        1,
+        1,
+        0
+      ],
+      "seconds": 6.23,
+      "seconds_excluding_waits": 6.23,
+      "retries": 0,
+      "input_tokens": 9656,
+      "output_tokens": 475,
+      "call_errors": [],
+      "reasoning": "ORD4038 has a single captured payment, pay_000039, for 899.00 in setl_0008. The fee check confirmed a 17.00 fee against the 12.00 netbanking rule, an overcharge of 5.00. This is a real discrepancy and not rounding drift. The settlement composition is consistent (14 members matching the reported total), so the extra fee was deducted from the payout.",
+      "analyst_note": "Raise the 5.00 fee overcharge on pay_000039 with the payment gateway or acquirer. Check whether a non-standard netbanking rate or a surcharge applied to this bank, and request a fee correction or refund if it was not contractual.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "get_order",
+          "tool_input": {
+            "order_id": "ORD4038"
+          },
+          "ok": true,
+          "summary": "order ORD4038 found"
+        },
+        {
+          "n": 2,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "ORD4038"
+          },
+          "ok": true,
+          "summary": "1 row(s) reference ORD4038"
+        },
+        {
+          "n": 3,
+          "tool": "check_fee_against_rule",
+          "tool_input": {
+            "txn_id": "pay_000039"
+          },
+          "ok": false,
+          "summary": "fee 17.00 exceeds the netbanking rule of 12.00 by 5.00"
+        },
+        {
+          "n": 4,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0008"
+          },
+          "ok": true,
+          "summary": "14 members sum to 20406.67, matching the report"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "BNK000004",
+      "entity_type": "bank_row",
+      "matcher_classification": "orphan_bank_credit",
+      "classification": "orphan_bank_credit",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 5,
+      "tool_calls_per_round": [
+        3,
+        2,
+        0
+      ],
+      "seconds": 12.85,
+      "seconds_excluding_waits": 12.85,
+      "retries": 0,
+      "input_tokens": 8091,
+      "output_tokens": 1484,
+      "call_errors": [],
+      "reasoning": "No settlement totals 4200.00 (\u00b11.00), and no single gateway transaction is near that amount. The balance is continuous at BNK000004, so no statement line is missing. The subset search did find five transactions summing to 4200.00 (pay_000120, pay_000032, pay_000064, pay_000060, pay_000054). I can't treat that as a real grouping, because a 5-term search over a pool of 40 can hit an exact total by coincidence. Also, find_related_transactions returned no gateway rows for pay_000120, and no settlement links the five transactions to this credit.",
+      "analyst_note": "The credit is an ACH COLLECT from Razorpay with reference RZP879978972 and an empty UTR column. Ask Razorpay or the bank for the payout or UTR behind RZP879978972. Then check whether pay_000120, pay_000032, pay_000064, pay_000060 and pay_000054 belong to one unreported payout and haven't already settled elsewhere. If they don't, treat the credit as unidentified money received and hold it in suspense.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 420000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 settlement(s) totalling 4200.00 (+/- 100p)"
+        },
+        {
+          "n": 2,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 420000,
+            "on_date": "2026-08-13",
+            "window_days": 3,
+            "max_terms": 5
+          },
+          "ok": true,
+          "summary": "5 transaction(s) sum exactly to 4200.00"
+        },
+        {
+          "n": 3,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 420000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 transaction(s) near 4200.00"
+        },
+        {
+          "n": 4,
+          "tool": "find_related_transactions",
+          "tool_input": {
+            "order_id": "pay_000120"
+          },
+          "ok": false,
+          "summary": "no gateway rows reference pay_000120"
+        },
+        {
+          "n": 5,
+          "tool": "check_balance_continuity",
+          "tool_input": {
+            "bank_txn_id": "BNK000004"
+          },
+          "ok": true,
+          "summary": "balance is continuous"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "BNK000006",
+      "entity_type": "bank_row",
+      "matcher_classification": "orphan_bank_credit",
+      "classification": "split_settlement",
+      "agreed": false,
+      "resolved": true,
+      "terminated": "answered",
+      "model_calls": 3,
+      "tool_calls": 5,
+      "tool_calls_per_round": [
+        3,
+        2,
+        0
+      ],
+      "seconds": 12.01,
+      "seconds_excluding_waits": 12.01,
+      "retries": 0,
+      "input_tokens": 8052,
+      "output_tokens": 1256,
+      "call_errors": [],
+      "reasoning": "No single settlement matches 2750.00 (search_settlements_by_amount returned 0 within \u00b11.00). find_subset_summing_to found three gateway transactions that sum exactly to 2750.00 within the window: pay_000060 (1200.50), pay_000068 (1200.00) and pay_000079 (349.50). The balance is continuous at BNK000006, so no statement line is missing. The credit therefore looks like an unreported grouping of these payments.",
+      "analyst_note": "The match rests on an exact-sum subset only. I didn't confirm that the three transactions share a settlement or UTR RZP813326083. Pay_000060 and pay_000079 each have other transactions at the same amount (pay_000015, pay_000017, pay_000002 and pay_000035), so the grouping could be a coincidence. Confirm the grouping against the Razorpay payout report for UTR RZP813326083.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 275000,
+            "tolerance_paise": 100
+          },
+          "ok": false,
+          "summary": "0 settlement(s) totalling 2750.00 (+/- 100p)"
+        },
+        {
+          "n": 2,
+          "tool": "find_subset_summing_to",
+          "tool_input": {
+            "target_paise": 275000,
+            "on_date": "2026-08-16",
+            "window_days": 3,
+            "max_terms": 5
+          },
+          "ok": true,
+          "summary": "3 transaction(s) sum exactly to 2750.00"
+        },
+        {
+          "n": 3,
+          "tool": "check_balance_continuity",
+          "tool_input": {
+            "bank_txn_id": "BNK000006"
+          },
+          "ok": true,
+          "summary": "balance is continuous"
+        },
+        {
+          "n": 4,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 120050,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "4 transaction(s) near 1200.50"
+        },
+        {
+          "n": 5,
+          "tool": "search_transactions_by_amount",
+          "tool_input": {
+            "amount_paise": 34950,
+            "tolerance_paise": 0
+          },
+          "ok": true,
+          "summary": "2 transaction(s) near 349.50"
+        }
+      ]
+    },
+    {
+      "engine": "langgraph",
+      "rep": 2,
+      "entity_id": "setl_0010",
+      "entity_type": "settlement",
+      "matcher_classification": "settlement_not_in_bank",
+      "classification": "settlement_not_in_bank",
+      "agreed": true,
+      "resolved": false,
+      "terminated": "answered",
+      "model_calls": 2,
+      "tool_calls": 3,
+      "tool_calls_per_round": [
+        3,
+        0
+      ],
+      "seconds": 6.12,
+      "seconds_excluding_waits": 6.12,
+      "retries": 0,
+      "input_tokens": 4747,
+      "output_tokens": 743,
+      "call_errors": [],
+      "reasoning": "setl_0010 is internally consistent. Its 9 payment members sum to 7227.29, which matches the reported total. The expected payout date 2026-08-21 is inside the plausible window of 2026-08-21 to 2026-08-25. The only settlement at that amount is setl_0010 itself, and no statement line was found for UTR RZP366888337. The money is therefore not accounted for on the bank side, and the window is still open, so the credit may only be late.",
+      "analyst_note": "Check the bank statement for a credit of 7227.29 or UTR RZP366888337 through 2026-08-25. Look at the running balance around 2026-08-21 for a missing statement line, because I had no bank transaction id to run a continuity check. If nothing has arrived by the end of the window, raise it with the gateway as an unpaid or held payout.",
+      "steps": [
+        {
+          "n": 1,
+          "tool": "check_settlement_composition",
+          "tool_input": {
+            "settlement_id": "setl_0010"
+          },
+          "ok": true,
+          "summary": "9 members sum to 7227.29, matching the report"
+        },
+        {
+          "n": 2,
+          "tool": "check_payout_window",
+          "tool_input": {
+            "settlement_id": "setl_0010",
+            "observed_date": "2026-08-21"
+          },
+          "ok": true,
+          "summary": "2026-08-21 is inside the plausible window 2026-08-21..2026-08-25"
+        },
+        {
+          "n": 3,
+          "tool": "search_settlements_by_amount",
+          "tool_input": {
+            "amount_paise": 722729,
+            "tolerance_paise": 100
+          },
+          "ok": true,
+          "summary": "1 settlement(s) totalling 7227.29 (+/- 100p)"
+        }
+      ]
+    }
+  ]
+}
