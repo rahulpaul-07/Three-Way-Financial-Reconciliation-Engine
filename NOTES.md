@@ -886,3 +886,50 @@ was BNK000004. The published traces (`web/public/data/agent_traces.json`, 44
 model calls) flag `setl_0010` as the one disagreement and show BNK000006 as
 agreed. So BNK000006 is new in this run, and it is the model, not the matcher,
 that moved.
+
+---
+
+### 2026-10-09 - find_subset_summing_to ignored whether a payment was already settled.
+
+Cause of the BNK000006 false resolution above. The tool built its candidate
+pool from every captured, processed or lost payment in the date window, without
+looking at `settlement_id`. For BNK000006 it returned three payments that sum
+to 2750.00 but are already paid out in `setl_0002` and `setl_0005`, and the
+agent called that a split settlement.
+
+What changed, in `src/tools.py` only:
+
+- The pool now leaves out payments whose `settlement_id` is a settlement in
+  the report. Membership comes from the gateway row's `settlement_id`, the same
+  field `check_settlement_composition` and the matcher use; `settlements.csv`
+  holds totals and no member list.
+- A payment whose `settlement_id` is not in the report stays in the pool. The
+  matcher already treats that as a defect, and such a payment is in no
+  reported payout, so it could be what an orphan credit is paying.
+- The result says what happened: the summary ends "; N already-settled
+  payment(s) excluded" when N is above zero, and the evidence carries
+  `excluded_settled` on success and on failure.
+- The model reads the tool schema, so the description of
+  `find_subset_summing_to` gained one sentence at the end: "Payments already
+  included in a settlement are excluded, and the result says how many." The
+  rest of the description is unchanged. The system prompt, the step cap and
+  both engines are untouched.
+
+The deterministic engine does not call this tool (the matcher has its own
+`subset_sum`), so the 90.8% resolved figure and the 100% classification
+accuracy are unaffected; the CI accuracy check still reads 129 (100.0%).
+Tests are in `tests_agents/test_subset_tool.py`. With the filter removed, three
+of them fail, including the BNK000006 regression. No reference-batch exception
+is a genuine split of unsettled payments, so the "still found" test uses
+pay_000101 and pay_000005, two unsettled 349.00 payments on 21 Aug.
+
+Not fixed here, and the next change after this one: the word "split
+settlement" means two different things. In the matcher it is one settlement
+paid across several bank lines (instalments). The agent used the same label
+for several payments summing to one bank credit, which is nearly the reverse.
+The taxonomy text the model sees ("one settlement paid in several instalments
+that sum exactly") says the first meaning, but nothing in the tool result or
+the prompt stops the model reading its subset-sum hit as the second. Whether
+that wording misled it is not known; I have not tested it. The re-run after
+this fix measures only the filter. The "tool calls" against "rounds" wording
+in the prompt is also still open.
