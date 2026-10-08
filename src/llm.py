@@ -65,6 +65,13 @@ class LLMResponse:
     raw: Any = None
     provider: str = ""
     error: str = ""
+    # Token counts when the provider reports them: {"input": n, "output": n}.
+    usage: dict[str, int] = field(default_factory=dict)
+    # Set on a rate-limit failure so a caller can wait instead of failing:
+    # seconds the vendor asked us to wait, and whether the limit is a daily one
+    # that waiting a minute will not clear.
+    retry_after: float | None = None
+    quota_exhausted: bool = False
 
     @property
     def ok(self) -> bool:
@@ -73,6 +80,26 @@ class LLMResponse:
     @property
     def wants_tools(self) -> bool:
         return bool(self.tool_calls)
+
+
+def error_response(provider: str, exc: Exception) -> LLMResponse:
+    """
+    Turn a vendor exception into a failed response, keeping what a caller needs
+    to wait out a rate limit: the Retry-After header when the SDK exposes it,
+    and whether the message says the limit is per day.
+    """
+    text = str(exc)
+    retry_after = None
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    if headers is not None:
+        try:
+            retry_after = float(headers.get("retry-after"))
+        except (TypeError, ValueError):
+            retry_after = None
+    low = text.lower()
+    daily = any(m in low for m in ("per day", "perday", "daily", "requests per day"))
+    return LLMResponse(provider=provider, error=text[:200],
+                       retry_after=retry_after, quota_exhausted=daily)
 
 
 # --------------------------------------------------------------------------
@@ -142,14 +169,17 @@ class AnthropicProvider(Provider):
                 kwargs["tools"] = tools
             resp = self._client.messages.create(**kwargs)
         except Exception as exc:                          # noqa: BLE001
-            return LLMResponse(provider=self.name, error=str(exc)[:200])
+            return error_response(self.name, exc)
 
         text = "".join(b.text for b in resp.content
                        if getattr(b, "type", "") == "text")
         calls = [ToolCall(b.id, b.name, dict(b.input)) for b in resp.content
                  if getattr(b, "type", "") == "tool_use"]
+        usage = getattr(resp, "usage", None)
+        counts = ({"input": usage.input_tokens, "output": usage.output_tokens}
+                  if usage is not None else {})
         return LLMResponse(text=text, tool_calls=calls, raw=resp.content,
-                           provider=self.name)
+                           provider=self.name, usage=counts)
 
     @staticmethod
     def assistant_turn(resp):
@@ -265,7 +295,7 @@ class OpenAICompatibleProvider(Provider):
                 kwargs["tool_choice"] = "auto"
             resp = self._client.chat.completions.create(**kwargs)
         except Exception as exc:                          # noqa: BLE001
-            return LLMResponse(provider=self.name, error=str(exc)[:200])
+            return error_response(self.name, exc)
 
         msg = resp.choices[0].message
         calls = []
@@ -275,8 +305,11 @@ class OpenAICompatibleProvider(Provider):
             except json.JSONDecodeError:
                 args = {}
             calls.append(ToolCall(tc.id, tc.function.name, args))
+        u = getattr(resp, "usage", None)
+        counts = ({"input": u.prompt_tokens, "output": u.completion_tokens}
+                  if u is not None else {})
         return LLMResponse(text=msg.content or "", tool_calls=calls,
-                           raw=msg, provider=self.name)
+                           raw=msg, provider=self.name, usage=counts)
 
     @staticmethod
     def assistant_turn(resp):
@@ -414,7 +447,7 @@ class GeminiProvider(Provider):
                 contents=self._flatten(system, messages),
                 config=types.GenerateContentConfig(**cfg))
         except Exception as exc:                          # noqa: BLE001
-            return LLMResponse(provider=self.name, error=str(exc)[:200])
+            return error_response(self.name, exc)
 
         text, calls = "", []
         for i, part in enumerate(
@@ -425,8 +458,12 @@ class GeminiProvider(Provider):
             if fc:
                 calls.append(ToolCall(f"gemini_{i}", fc.name,
                                       dict(fc.args or {})))
+        u = getattr(resp, "usage_metadata", None)
+        counts = ({"input": u.prompt_token_count or 0,
+                   "output": u.candidates_token_count or 0}
+                  if u is not None else {})
         return LLMResponse(text=text, tool_calls=calls, raw=resp,
-                           provider=self.name)
+                           provider=self.name, usage=counts)
 
     @staticmethod
     def assistant_turn(resp):

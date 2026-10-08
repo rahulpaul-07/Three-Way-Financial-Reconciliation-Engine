@@ -8,7 +8,8 @@ evidence or with an escalation note for a human analyst.
 
 Constraints, all enforced in code rather than requested in the prompt:
 
-  * at most MAX_STEPS tool calls per exception
+  * at most MAX_STEPS model rounds per exception. A round may request
+    several tool calls and all of them run; the bound is on rounds
   * the agent may only call tools from the registry; anything else is refused
   * every tool result is computed deterministically -- the model performs no
     arithmetic and no matching
