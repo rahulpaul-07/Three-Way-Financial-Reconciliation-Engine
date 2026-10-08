@@ -96,10 +96,11 @@ python3 src/report.py --data data --traces agent_traces.json \
                       --qa qa_answers.json --out report.html
 python3 src/ask.py --data data --demo --json qa_answers.json
 python3 -m pytest tests/ -q                           # 179 tests
+python3 -m pytest tests_agents/ -q                    # 105 more; needs requirements-agents.txt, Python 3.11+
 python3 src/evaluate.py --stress --compound --seeds 3 # where it breaks
 ```
 
-Only `investigate.py` needs a language model. Everything else is deterministic
+Only `investigate.py` and `sql_ask.py` need a language model. Everything else is deterministic
 and runs with no API key.
 
 ## The problem
@@ -239,6 +240,70 @@ This was rebuilt after a live run in which a valid key with a stale model name
 caused the original chain to discard an otherwise working provider. Model
 identifiers are a dependency on a vendor's catalogue at a point in time, and
 vendors retire models.
+
+## Using the engine from an agent
+
+Three optional layers put the engine in front of an agent. None of them changes
+the reconciliation, and none is needed to run it. They need
+`pip install -r requirements-agents.txt` and Python 3.11 or newer.
+
+**An MCP server** (`src/mcp_server.py`). Any MCP client can connect and run the
+same investigation the built-in agent runs.
+
+```bash
+python3 src/mcp_server.py --data data                  # stdio, for a desktop client
+python3 src/mcp_server.py --data data --transport streamable-http
+```
+
+It exposes the nine investigation tools plus four more: `list_exceptions`,
+`get_record_facts`, `describe_schema` and `run_sql`. The nine are not written out
+a second time; they are built from the same registry the in-process agent uses
+(`TOOL_SCHEMA` and `build_dispatch`), and a test fails if a name, description or
+parameter ever differs. Every tool is read-only, and the server contains no model
+call and needs no key: whatever is on the other end supplies the strategy, the
+tools supply the truth.
+
+**The agent as a LangGraph state graph** (`src/agent_graph.py`). The same
+bounded agent, with the control flow as an explicit graph instead of a loop:
+`python3 src/investigate.py --data data --engine langgraph`. The four
+constraints (step limit, closed tool registry, fixed taxonomy, evidence required)
+each live in a node, in code. The prompt, verdict parser, result type and
+provider failover are imported from `agent.py` and `llm.py` rather than copied.
+A test runs both engines against the same scripted model across nine
+conversations, including a model that errors and one that never stops asking for
+tools, and requires identical results. The one difference is deliberate: for a
+refused tool the loop numbers the step by model round, so a refusal after an
+earlier call in the same round repeats a number; the graph numbers every call in
+sequence. That test pins both behaviours.
+
+**Plain-English questions answered through SQL** (`src/sql_ask.py`). `ask.py`
+answers from a fixed menu of aggregate queries; this one lets the model write the
+SQL, so a question the menu never anticipated can still be answered. That is a
+much larger grant of power, so the limits are in code, not in the prompt: SQLite's
+authorizer allows SELECT and nothing else, `PRAGMA query_only` is on as a second
+and independent barrier, functions run only from an allowlist (no `random()`, no
+`zeroblob()`), a work budget stops runaway queries, string length is capped, and
+at most 100 rows come back with truncation reported. Each barrier is tested alone.
+
+Money is converted in code: every `*_paise` column arrives with a matching
+`*_inr` column, so the model never divides by 100. And every figure in the final
+answer must appear in a query result or in the question; an answer that
+contains one that does not is returned with the offending figures listed. This is
+the post-check that `ARCHITECTURE.md` records as unbuilt for `ask.py`. It
+catches the failure `NOTES.md` describes, a correct sum the model computed itself
+that no query returned.
+
+What it does not prove: that the SQL asked the right question. A query that joins
+on the wrong key returns real numbers, and the answer passes the check. That is
+why every answer carries the exact SQL that produced it.
+
+None of the three has been run against a live model yet. The agent loops are
+tested with a scripted provider that plays a model, including a misbehaving one,
+and the SQL guards are tested directly with hostile queries. 105 tests in
+`tests_agents/`, mutation-checked: deliberate bugs were introduced one at a time
+(the authorizer, the function allowlist, the step limit, the closed tool registry,
+a wrapper that altered a result) and each was caught. Removing the work budget is
+caught as a test that no longer finishes.
 
 ## Where it breaks
 
@@ -404,7 +469,7 @@ the engine to see the page.
 
 ## Continuous integration
 
-Every push runs five jobs, and a separate workflow publishes the dashboard to GitHub Pages:
+Every push runs six jobs, and a separate workflow publishes the dashboard to GitHub Pages:
 
 | Job | What it proves |
 |---|---|
@@ -413,6 +478,7 @@ Every push runs five jobs, and a separate workflow publishes the dashboard to Gi
 | `reconcile` | a clean checkout generates, reconciles, grades and reports end to end, and no unseen defect class passes silently |
 | `web` | the site data builds from a clean checkout, the dashboard type-checks, builds and prerenders, and the engine serves it |
 | `provider-degradation` | the engine reconciles correctly with **no** language model configured |
+| `agent-layers` | the 105 tests for the MCP server, LangGraph agent and SQL layer pass on Python 3.11 through 3.13 |
 
 The `reconcile` job asserts the exact accuracy figure. A regression that lowers
 it fails the build rather than quietly changing a number in this file.
@@ -469,11 +535,15 @@ src/tools.py          9 deterministic investigation tools
 src/agent.py          bounded exception resolution agent
 src/investigate.py    runs the agent over unresolved records
 src/ask.py            settlement Q&A over aggregate queries
+src/sql_ask.py        plain-English questions answered through guarded read-only SQL
+src/mcp_server.py     MCP server over the investigation tools and the SQL layer
+src/agent_graph.py    the resolution agent as a LangGraph state graph
 src/evaluate.py       grading, Wilson intervals, variance, throughput
 src/report.py         self-contained HTML report
 src/analysis.py       JSON view of a run, shared by the API and the site build
 src/taxonomy.py       every classification, its severity and meaning, in one place
 src/app.py            web interface and JSON API over the engine
+tests_agents/         tests for the three layers above (kept apart so `tests/` stays dependency-free)
 scripts/              site data build, agent trace extraction
 web/                  React dashboard (Vite, TypeScript, Tailwind)
 ```

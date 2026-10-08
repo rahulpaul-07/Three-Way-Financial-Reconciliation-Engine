@@ -33,6 +33,28 @@ jobs:
       - name: Run tests
         run: python -m pytest tests/ -q
 
+  agent-layers:
+    # The MCP server, the LangGraph agent and the SQL layer. Kept out of the
+    # `test` job on purpose: that job proves the engine needs no dependency
+    # beyond its web layer, and these layers need mcp and langgraph. The SQL
+    # layer also needs 3.11 (sqlite3.Connection.setlimit).
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -r requirements-agents.txt
+      - name: Run the agent-layer tests
+        # No model and no network: a scripted provider plays the model, and
+        # the MCP server is exercised over a real stdio subprocess.
+        run: python -m pytest tests_agents/ -q
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -42,7 +64,7 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install ruff==0.16.9
       - name: Ruff (rules in pyproject.toml)
-        run: ruff check src tests scripts
+        run: ruff check src tests tests_agents scripts
 
   reconcile:
     # Proves the pipeline runs end to end from a clean checkout, not just that
