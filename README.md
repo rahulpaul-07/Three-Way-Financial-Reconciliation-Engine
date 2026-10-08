@@ -379,7 +379,10 @@ by step, and a tab to run it live), and the principles.
 The motion is adapted from [Magic UI](https://magicui.design) (Animated Beam,
 Border Beam, Blur Fade, Animated List, Bento Grid) and the tab pattern from
 [21st.dev](https://21st.dev)'s Animated Tabs, ported to Tailwind 3 and
-framer-motion and restyled in the ledger palette. Each animation carries
+framer-motion. The visual style is a dark maximalist theme (a purple-black
+background with five accent colours; Outfit, DM Sans and Bungee type). Status
+colours keep one meaning each: cyan matched, lime explained, yellow needs
+review, red a break. Magenta, orange and violet are decoration only. Each animation carries
 meaning: beams show a record's direction of travel, the border beam runs only
 while the engine is working on a request, the trace replays in the order the
 agent made its calls. All of it stops under `prefers-reduced-motion`, and the
@@ -390,7 +393,9 @@ beams pause when off screen.
 paints from the HTML before any JavaScript has run, and React hydrates it
 afterwards. The chart sections are loaded with `import()`, which keeps recharts
 and d3 (about 100 kB gzipped) off the path to the first paint. Measured with
-Lighthouse's mobile profile against the same local server, three runs each:
+Lighthouse's mobile profile against the same local server, three runs each.
+The "Redesigned" column is the 2026-09-30 layout; it has not been re-measured
+since the 2026-10-08 restyle:
 
 | | Before | Prerendered | Redesigned |
 |---|---|---|---|
