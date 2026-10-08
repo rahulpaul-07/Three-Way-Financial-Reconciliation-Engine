@@ -312,6 +312,11 @@ totals so no addition is ever needed, or a post-check that every number in the
 answer appears in a tool result. Both are code-level and testable; neither is
 built.
 
+The post-check is built in `src/sql_ask.py`, the open-ended SQL version of this
+layer: every figure in the answer must appear in a query result or in the
+question, and a sum the model computed itself is returned flagged. `ask.py`
+itself still has the prompt-only rule described above.
+
 ---
 
 ### The same boundary over HTTP

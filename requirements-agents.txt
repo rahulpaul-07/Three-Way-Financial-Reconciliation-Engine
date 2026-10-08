@@ -1,0 +1,7 @@
+# Optional layers that put the engine in front of an agent: the MCP server
+# (src/mcp_server.py), the LangGraph agent (src/agent_graph.py) and the SQL
+# question layer (src/sql_ask.py, which needs Python 3.11+ and no extra package).
+# The reconciliation engine and its 179 tests need none of this.
+-r requirements-dev.txt
+mcp==2.2.0
+langgraph==1.2.14

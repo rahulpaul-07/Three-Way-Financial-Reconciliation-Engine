@@ -90,6 +90,10 @@ def main() -> None:
                     help="investigate only the first N exceptions")
     ap.add_argument("--json", default="", help="write traces to a JSON file")
     ap.add_argument("--provider", default="", help="force a provider")
+    ap.add_argument("--engine", choices=["loop", "langgraph"], default="loop",
+                    help="loop: agent.py, no dependency. langgraph: the same "
+                         "agent as a state graph (agent_graph.py); needs "
+                         "`pip install langgraph`")
     args = ap.parse_args()
 
     datadir = Path(args.data)
@@ -103,10 +107,16 @@ def main() -> None:
     provider = get_provider(args.provider or None)
     from tools import InvestigationTools
     tools = InvestigationTools(orders, txns, settlements, bank)
-    agent = ResolutionAgent(tools, provider=provider)
+    if args.engine == "langgraph":
+        # Imported here so the default path keeps its no-dependency promise.
+        from agent_graph import GraphResolutionAgent
+        agent = GraphResolutionAgent(tools, provider=provider)
+    else:
+        agent = ResolutionAgent(tools, provider=provider)
 
     print("=" * 74)
-    print(f"EXCEPTION INVESTIGATION  --  {len(exceptions)} records")
+    print(f"EXCEPTION INVESTIGATION  --  {len(exceptions)} records  "
+          f"(engine: {args.engine})")
     from llm import FallbackChain
     if isinstance(provider, FallbackChain):
         print(f"provider chain: {len(provider.candidates)} provider/model "
