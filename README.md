@@ -96,7 +96,7 @@ python3 src/report.py --data data --traces agent_traces.json \
                       --qa qa_answers.json --out report.html
 python3 src/ask.py --data data --demo --json qa_answers.json
 python3 -m pytest tests/ -q                           # 179 tests
-python3 -m pytest tests_agents/ -q                    # 127 more; needs requirements-agents.txt, Python 3.11+
+python3 -m pytest tests_agents/ -q                    # 230 more; needs requirements-multiagent.txt, Python 3.11+
 python3 src/evaluate.py --stress --compound --seeds 3 # where it breaks
 ```
 
@@ -347,12 +347,102 @@ The LangGraph engine has now been run against a live model (see
 [Live evaluation](#live-evaluation)); the MCP server and the SQL layer have not.
 The agent loops are tested with a scripted provider that plays a model,
 including a misbehaving one, and the SQL guards are tested directly with hostile
-queries. 127 tests in `tests_agents/`, which also cover the live-evaluation
-harness and the subset-sum filter. The tests for the three layers are
+queries. 230 tests in `tests_agents/`, which also cover the live-evaluation
+harness, the subset-sum filter and the multi-agent router. The tests for the three layers are
 mutation-checked: deliberate bugs were introduced one at a time (the authorizer,
 the function allowlist, the step limit, the closed tool registry, a wrapper that
 altered a result) and each was caught. Removing the work budget is
 caught as a test that no longer finishes.
+
+## Multi-agent router
+
+A plain-English front door over the agents above, built as three Google ADK
+agents with the routing enforced in code. A router agent reads a request and
+proposes where it goes; the code checks that proposal and runs the destination:
+
+- **investigator**: a question about one specific record or exception ("why is
+  this order over?"). It has the nine investigation tools plus `list_exceptions`
+  and `get_record_facts`.
+- **data agent**: an aggregate question about the batch ("how many orders per
+  payment method?"). It has one tool, the guarded read-only `run_sql`.
+- **human**: everything else. Any request to change, delete or approve
+  anything, anything off topic or too vague, and anything that tries to give the
+  agents new instructions.
+
+Every agent takes its tools from `src/mcp_server.py` over stdio. No write tool
+exists anywhere, so no agent could change data even if a prompt told it to.
+
+**What the code enforces.** Each has a test with a scripted model that
+misbehaves on purpose, and each guard was broken in turn to confirm a test fails.
+
+- The router can reach only `investigator`, `data` or `human`; any other reply
+  becomes `human`.
+- Each specialist is offered only its own closed tool set.
+- One budget of model calls covers every agent in a request (default 7); when it
+  runs out the request becomes a handoff.
+- Each specialist keeps the step limit of the engine it reuses (5 and 6).
+- The request and tool output are data, never instructions: the request is a
+  user message only and is never placed in an instruction.
+- The data agent's figures are checked against its query results, because the
+  MCP `run_sql` tool does not do that itself.
+
+**What counts as a handoff.** A classified finding is an *answer*: if the
+investigator concludes `missing_payment` with `resolved: false`, that is a
+correct result about a genuine break, and it is returned. A request becomes a
+handoff, with a note for a person, only when the router chooses `human`; the
+investigator reports `unexplained` or gives an unusable verdict; a verdict has no
+successful tool call behind it; a specialist hits its step limit; the model
+fails; a figure cannot be traced to a query result; or the call budget runs out.
+The note states the request, which agent tried, the tools it called with their
+arguments, and why it stopped. The no-evidence trigger is stricter than the
+original agent; see D15 in `DECISIONS.md`.
+
+```bash
+pip install -r requirements-multiagent.txt     # google-adk, pinned; Python 3.11+
+python3 -m pytest tests_agents/ -q             # no model, no network
+python3 scripts/router_eval.py models          # list available Gemini models (free)
+python3 scripts/router_eval.py run --model MODEL --label smoke --only R02,R11,R21 --reps 1 --cap 20
+python3 scripts/router_eval.py summarise results/router_eval/MODEL_smoke.json
+```
+
+### The router evaluation
+
+`data/router_eval.jsonl` holds 30 fixed requests, ten per destination, written
+and committed before the router existed. Four are boundary cases whose correct
+route was decided in advance and recorded with the reason. The expected answers
+for the data requests are computed by `scripts/router_eval_gold.py` from a
+separate gold query, and a test fails if the stored answer drifts.
+
+`router_eval.py summarise` reports routing accuracy with a confusion table, the
+boundary cases one by one, **missed handoffs** (a request that needed a person
+and was answered anyway, the costly error), unneeded handoffs, data
+correctness, model calls, tokens and latency, and **end-to-end agreement** of
+the investigator's verdict with the matcher's classification, given correct
+routing, reported separately for requests that hint at the answer and those
+that do not.
+
+- Six investigator requests (R01-R05, R09) hint at the answer in their wording,
+  which makes the hinted agreement number easier. Four (R06-R08, R10) do not.
+  With only four unhinted items, one miss moves that number by 25 points per
+  repetition, so it is an indication, not a measurement.
+- Data correctness means every expected figure and string appears in the answer.
+  It does not catch a correct answer padded with a wrong extra figure, though
+  the grounding check refuses figures that are in no query result.
+- The run uses the call cap, resume and rate-limit handling of the engine
+  comparison, with its own ledger (`results/router_ledger.json`) and a hard cap
+  of 300 calls. A result file records a hash of every prompt, and resuming
+  against changed prompts is refused. Prompts are not tuned against this set
+  without recording each change in `NOTES.md`; any figures measured after a
+  change will say so here. **Results: not yet measured.**
+- **Privacy.** The evaluation runs on Gemini's free tier, whose prompts may be
+  used by Google to improve its products. The data is synthetic, generated by
+  `src/generate_data.py`; do not point this at real transactions on that tier.
+
+What this does not show: that the router generalises past these 30 requests,
+that the wording is representative of real users, or that the data agent's SQL
+asks the right question every time. It is also not tested against a determined
+adversary; the injection cases are three fixed strings, and the protection that
+matters is that no tool can write.
 
 ## Where it breaks
 
@@ -523,7 +613,7 @@ the engine to see the page.
 
 ## Continuous integration
 
-Every push runs six jobs, and a separate workflow publishes the dashboard to GitHub Pages:
+Every push runs seven jobs, and a separate workflow publishes the dashboard to GitHub Pages:
 
 | Job | What it proves |
 |---|---|
@@ -532,7 +622,8 @@ Every push runs six jobs, and a separate workflow publishes the dashboard to Git
 | `reconcile` | a clean checkout generates, reconciles, grades and reports end to end, and no unseen defect class passes silently |
 | `web` | the site data builds from a clean checkout, the dashboard type-checks, builds and prerenders, and the engine serves it |
 | `provider-degradation` | the engine reconciles correctly with **no** language model configured |
-| `agent-layers` | the 127 tests in `tests_agents/` (MCP server, LangGraph agent, SQL layer, live-evaluation harness, subset-sum filter) pass on Python 3.11 through 3.13 |
+| `agent-layers` | the tests in `tests_agents/` that need only `requirements-agents.txt` (MCP server, LangGraph agent, SQL layer, live-evaluation harness, subset-sum filter) pass on Python 3.11 through 3.13; the router tests skip themselves there |
+| `multi-agent` | all 230 tests in `tests_agents/`, router included, pass with `requirements-multiagent.txt` on Python 3.11 through 3.13 |
 
 The `reconcile` job asserts the exact accuracy figure. A regression that lowers
 it fails the build rather than quietly changing a number in this file.
@@ -592,6 +683,8 @@ src/ask.py            settlement Q&A over aggregate queries
 src/sql_ask.py        plain-English questions answered through guarded read-only SQL
 src/mcp_server.py     MCP server over the investigation tools and the SQL layer
 src/agent_graph.py    the resolution agent as a LangGraph state graph
+src/multi_agent/      three ADK agents behind a router, routing enforced in code
+scripts/router_eval.py  runs and scores the 30-request router evaluation
 src/evaluate.py       grading, Wilson intervals, variance, throughput
 src/report.py         self-contained HTML report
 src/analysis.py       JSON view of a run, shared by the API and the site build
@@ -605,7 +698,7 @@ web/                  React dashboard (Vite, TypeScript, Tailwind)
 `ARCHITECTURE.md` - how the system is built and why each part is shaped that way,
 including a section on what it deliberately does not do.
 
-`DECISIONS.md` - fourteen design decisions, each with the alternative rejected.
+`DECISIONS.md` - fifteen design decisions, each with the alternative rejected.
 `NOTES.md` - thirty-two entries logging what broke during the build and how each was
 resolved, written as they happened rather than reconstructed afterwards.
 Includes the case where the agent's investigation exposed a weakness in the

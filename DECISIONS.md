@@ -20,6 +20,7 @@ D11. Failover walks provider AND model, and demotion is scoped by failure kind
 D12. Agent constraints are enforced in code so that they are testable
 D13. Contested matches are solved jointly, not sequentially
 D14. Agreement with the agent is reported as kappa, not a percentage
+D15. Routing is an explicit orchestrator with code-validated routes, not transfer_to_agent
 
 ---
 
@@ -305,3 +306,50 @@ chance alone would produce: 92.3% raw becomes 0.90.
 **Stated with its own caveat.** On thirteen records kappa is an unstable
 estimate and should be read as an indication rather than a measurement. A
 confident kappa on a sample this size would be its own kind of overclaiming.
+
+---
+
+## D15 - Routing is an explicit orchestrator with code-validated routes, not transfer_to_agent
+
+**Chosen:** the router is an ADK agent that proposes a destination as JSON, and
+plain code (`RouterApp.handle`) validates it, runs the chosen specialist in a
+session of its own, and judges the result. The code accepts exactly three
+values, `investigator`, `data` and `human`; anything else is a handoff to a
+person.
+
+**Why:** ADK's built-in route is `sub_agents` plus `transfer_to_agent`, where
+the model names the next agent and the framework follows. That makes the
+routing decision, the handoff and the stopping rule all model behaviour. The
+rules this feature has to guarantee are the opposite kind: the router can reach
+only three destinations, each specialist sees only its own tools, the total
+number of model calls per request is capped across all agents, and every
+escalation ends in a written note. Each of those is a property of control flow,
+so each lives in control flow, where a scripted model can try to break it and a
+test can fail. The agents are still ADK agents with real MCP tools; only the
+hand-off between them is code.
+
+**Rejected:**
+- *`sub_agents` with `transfer_to_agent`.* One shared session, a model-chosen
+  destination the framework does not validate against a closed set, and no
+  natural place for a cross-agent call budget or a handoff note.
+- *A custom ADK `BaseAgent` that does the orchestration.* Same behaviour as the
+  plain function, with more framework to explain and the event stream to
+  thread through.
+- *LangGraph.* Would have been the fallback had ADK not worked with the MCP
+  server over stdio. It did, so the extra dependency was not earned.
+
+**`no_evidence` is stricter than the original agent.** `agent.py` accepts a
+classified verdict with no tool call behind it as long as it does not claim
+`resolved: true`; it only downgrades a claimed resolution. Here an investigator
+verdict with no successful tool call is a handoff (`no_evidence`) whatever it
+claims. A classification the model produced without looking at any record is a
+guess, and a front door that hands people guesses is worse than one that says
+"a person should look". The cost is a possible extra handoff on a request the
+old agent would have answered; the eval counts those as unneeded handoffs.
+
+**What is not a handoff.** A classified finding, such as `missing_payment` with
+`resolved: false`, is an answer: the investigation worked and found a genuine
+break. A handoff happens only on `unexplained`, an invalid verdict, no
+evidence, the step limit, a model error, an ungrounded figure, or an exhausted
+budget.
+
