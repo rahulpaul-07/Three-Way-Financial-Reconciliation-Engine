@@ -808,3 +808,81 @@ in. `renderToString` cannot wait for a lazy component, so the evidence section
 was written out as a Suspense fallback, and on every load the browser
 discarded it and re-rendered it, logging React error #419. The placeholder is
 now rendered directly until hydration has finished.
+
+---
+
+### 2026-10-09 - The live engine comparison found a step-cap quirk and a false resolution.
+
+Ran both engines against the live model for the first time: claude-sonnet-5-5,
+the seed-42 reference batch, the 13 exceptions, 2 repetitions per engine. That
+is 52 investigations and 180 model calls, about $1.27. The results are in
+`results/engine_compare/anthropic_claude-sonnet-5-5_full-sonnet.json`.
+
+| | loop | langgraph |
+|---|---|---|
+| Investigations | 26 | 26 |
+| Answered | 23 | 26 |
+| Hit the step limit | 3 | 0 |
+| Agreed with the matcher | 20 | 24 |
+| Marked resolved | 3 | 2 |
+| Model calls | 92 | 88 |
+| Tool calls | 114 | 105 |
+| Input / output tokens | 229,754 / 19,072 | 216,794 / 19,003 |
+| Summed wall time | 226 s | 207 s |
+
+The loop's three step-limit hits were ORD4034 (both repetitions) and ORD4089
+(repetition 1).
+
+**ORD4034 is model variance, not an engine difference.** The loop hit the step
+limit on both repetitions; the graph answered `fee_mismatch` on repetition 1
+after the same 5 model calls. The two step-cap implementations are the same
+rule. Both count model rounds, and in both a 5th call that answers is accepted
+and a 5th call that asks for tools runs them and then escalates. In this case
+the 5th call asked for a tool (a repeat `get_order`) in the loop and answered
+in the graph. Both engines report 12,475 input tokens across their 5 calls, so
+the input was very likely the same; I did not store the messages, so that is
+an inference. It is not an off-by-one.
+
+Two small things this turned up, neither fixed here:
+
+- The system prompt tells the model it has "at most 5 tool calls", but the code
+  enforces 5 model rounds, and a round can contain several tool calls. The
+  loop's ORD4034 runs made 6 tool calls in 5 rounds. In one BNK000006 note the
+  model wrote that it had "gone over the 5-call limit". The module docstring in
+  `agent.py` now says rounds; the prompt text still says tool calls.
+- In the loop, a call to an unknown tool is numbered with the round
+  (`step_n`) instead of the running call count (`call_n`), as every other
+  branch does. The graph numbers it by call. It only affects trace numbering
+  and did not occur in these runs.
+
+**BNK000006 was marked resolved by all four runs, and all four were wrong.**
+The matcher and the answer key say `orphan_bank_credit`. Every run (both
+engines, both repetitions) answered `split_settlement` with `resolved: true`.
+The data regenerates byte-for-byte from seed 42, and the generator makes an
+orphan by drawing an amount from 1500, 2750 or 4200 and a fresh UTR, with no
+link to any gateway row. The "split" the model found is a coincidence:
+
+- It was an exact-sum subset of payments (pay_000060 + pay_000068 +
+  pay_000079 = 2750.00, one run found a different triple), and those payments
+  are already in settlements `setl_0002` and `setl_0005`, which match
+  BNK000003 and BNK000008.
+- The UTR on the bank row (RZP813326083) appears in no settlement, gateway or
+  ledger row.
+- My own count of captured payments within 3 days of the credit found 578
+  subsets of up to 5 that sum to 2750.00, so an exact sum says very little.
+
+The evidence-required guard did not catch this, and it was not built to. It
+checks that the model called at least one tool before claiming resolution. It
+does not check that the evidence supports the verdict, and here the evidence
+existed and pointed the wrong way. The tools the model used also never asked
+whether those payments were already settled. Not addressed yet.
+
+BNK000004 (also a planted orphan) was marked `split_settlement` and resolved in
+loop repetition 1 as well. I have not looked at why.
+
+**The earlier 12/13 run did not disagree on BNK000006.** The repo records two
+earlier 13-record runs. The 2026-09-02 entry above says the one disagreement
+was BNK000004. The published traces (`web/public/data/agent_traces.json`, 44
+model calls) flag `setl_0010` as the one disagreement and show BNK000006 as
+agreed. So BNK000006 is new in this run, and it is the model, not the matcher,
+that moved.
