@@ -1,5 +1,8 @@
 import { BlurFade } from "@/components/ui/blur-fade";
 import { SectionHeader } from "@/components/ui/section-header";
+import { Section } from "@/components/ui/section";
+import { accentOf } from "@/components/ui/section";
+import { cn } from "@/lib/utils";
 import { blob } from "./links";
 
 // Stances are not a sequence, so they are not numbered.
@@ -20,7 +23,7 @@ const RULES = [
 
 export function Principles() {
   return (
-    <section id="principles">
+    <Section id="principles" accent={0} word="RULES">
       <div className="mx-auto max-w-page px-5 py-20 sm:px-8 lg:py-28">
         <SectionHeader folio="05" eyebrow="Principles" title="Three stances, and the rules of the domain.">
           The reasoning behind each choice, and what was rejected, is in{" "}
@@ -32,8 +35,10 @@ export function Principles() {
         <div className="mt-12 grid gap-4 md:grid-cols-3">
           {STANCES.map((s, i) => (
             <BlurFade key={s.title} delay={i * 0.08}
-              className="flex flex-col rounded-lg border border-rule bg-sheet p-6">
-              <h3 className="font-serif text-xl font-medium leading-snug">{s.title}</h3>
+              data-accent={accentOf(i + 1)}
+              className={cn("card-max card-hover flex flex-col p-6 shadow-hard-sm",
+                i === 1 && "dashed md:translate-y-8 md:-rotate-1", i === 2 && "double md:rotate-1", i === 0 && "md:rotate-1")}>
+              <h3 className="ts-1 font-serif text-2xl font-black uppercase leading-tight">{s.title}</h3>
               <p className="mt-3 leading-relaxed text-graphite">{s.body}</p>
             </BlurFade>
           ))}
@@ -41,22 +46,22 @@ export function Principles() {
 
         <BlurFade className="mt-14 grid gap-8 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
           <div>
-            <h3 className="text-2xl font-medium">Domain rules encoded</h3>
+            <h3 className="ts-2 text-4xl font-black uppercase leading-none tracking-tighter">Domain rules encoded</h3>
             <p className="mt-3 max-w-prose leading-relaxed text-graphite">
               Each is enforced in the engine's code rather than left to convention. A single hardcoded fee rate, for example,
               would be wrong on three of the four payment methods.
             </p>
           </div>
-          <ul className="ruled rounded-lg border border-rule bg-sheet px-5 text-[0.95rem] leading-8">
+          <ul className="ruled card-max dashed shadow-hard px-5 text-[0.95rem] leading-8">
             {RULES.map((r) => (
               <li key={r} className="flex gap-3">
-                <span aria-hidden className="text-tick">✓</span>
+                <span aria-hidden className="font-black text-tick">&#10003;</span>
                 <span>{r}</span>
               </li>
             ))}
           </ul>
         </BlurFade>
       </div>
-    </section>
+    </Section>
   );
 }

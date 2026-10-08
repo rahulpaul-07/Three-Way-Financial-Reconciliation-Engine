@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs } from "@/components/ui/tabs";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { SectionHeader } from "@/components/ui/section-header";
+import { Section } from "@/components/ui/section";
 import { Skeleton } from "@/components/ui/panel";
 import { blob } from "./links";
 
@@ -46,7 +47,7 @@ export function Workbench({ engine, meta, run, onRun }: {
   }
 
   return (
-    <section id="workbench" className="border-b border-rule">
+    <Section id="workbench" accent={2} word="TRY IT">
       <div className="mx-auto max-w-page px-5 py-20 sm:px-8 lg:py-28">
         <SectionHeader folio="02" eyebrow="Workbench" title="Run it on a batch of your choosing.">
           Pick a bundled batch, generate one with the defect rate you want, or upload your own three files. Every chart and
@@ -73,13 +74,13 @@ export function Workbench({ engine, meta, run, onRun }: {
           {mode === "upload" && <UploadForm disabled={engine.state === "offline"} busy={busy} engine={engine}
             onUpload={(files) => go("upload", () => live.reconcile(files), true)} />}
           {queued && starting && (
-            <p aria-live="polite" className="mt-4 max-w-prose rounded border border-pencil/40 bg-pencil/[0.07] px-4 py-3 text-sm text-pencil">
+            <p aria-live="polite" className="mt-4 max-w-prose rounded-2xl border-4 border-dashed border-pencil bg-pencil/10 px-4 py-3 text-sm text-pencil">
               Held until the engine answers. It sleeps when nobody has used it for a quarter of an hour and takes
               30 to 60 seconds to start; this runs by itself as soon as it does.
             </p>
           )}
           {error && (
-            <p role="alert" className="mt-4 max-w-prose rounded border border-redink/40 bg-redink/[0.06] px-4 py-3 text-sm text-redink">
+            <p role="alert" className="mt-4 max-w-prose rounded-2xl border-4 border-redink bg-redink/10 px-4 py-3 text-sm text-redink">
               {error}
             </p>
           )}
@@ -98,7 +99,7 @@ export function Workbench({ engine, meta, run, onRun }: {
           </div>
         </div>
       </div>
-    </section>
+    </Section>
   );
 }
 
@@ -107,7 +108,7 @@ function DatasetList({ meta, current, busy, onPick }: {
 }) {
   if (!meta) return <Skeleton className="h-48 w-full" />;
   return (
-    <div className="scroll-x rounded-lg border border-rule bg-sheet">
+    <div className="scroll-x card-max">
       <table className="w-full min-w-[40rem] text-sm">
         <thead>
           <tr className="border-b border-rule text-left text-graphite">
@@ -174,7 +175,7 @@ function Generate({ disabled, busy, engine, onGenerate }: {
   const [compound, setCompound] = useState(false);
 
   return (
-    <div className="rounded-lg border border-rule bg-sheet p-5 sm:p-6">
+    <div className="card-max p-5 sm:p-6">
       <p className="max-w-prose text-sm text-graphite">
         The generator plants known defects and writes an answer key alongside, so a generated batch is graded as well as reconciled.
         Raise the defect rate to watch the resolution rate fall; allow compound defects to watch accuracy fall.
@@ -182,7 +183,7 @@ function Generate({ disabled, busy, engine, onGenerate }: {
       <div className="mt-5 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <Field label="Seed" hint="Same seed, same batch">
           <input type="number" min={0} max={1000000} value={seed} onChange={(e) => setSeed(Number(e.target.value))}
-            className="num h-10 w-full rounded border border-rule bg-paper px-3" />
+            className="num h-12 w-full rounded-full border-4 border-tick bg-sheet/60 px-5 text-base font-bold transition-all duration-300 focus:border-pencil focus:bg-sheet focus:shadow-[0_0_20px_rgb(var(--pencil)/0.5)]" />
         </Field>
         <Field label={`Orders: ${orders}`} hint="20 to 2,000">
           <input type="range" min={20} max={2000} step={20} value={orders} onChange={(e) => setOrders(Number(e.target.value))}
@@ -236,7 +237,7 @@ function UploadForm({ disabled, busy, engine, onUpload }: {
   const ready = FILES.filter((f) => f.required).every((f) => files[f.name]);
 
   return (
-    <div ref={formRef} className="rounded-lg border border-rule bg-sheet p-5 sm:p-6">
+    <div ref={formRef} className="card-max p-5 sm:p-6">
       <p className="max-w-prose text-sm text-graphite">
         Amounts are integer paise (45000 means ₹450.00). Files are reconciled in memory and deleted with the response; nothing is stored.
         To try it without your own books, download a set from{" "}
@@ -248,8 +249,8 @@ function UploadForm({ disabled, busy, engine, onUpload }: {
             <span className="text-sm font-medium">{f.name}.csv</span>
             <span className="ml-2 text-xs text-graphite">{f.required ? "required" : "optional"}</span>
             <span className="mt-0.5 block text-xs leading-snug text-graphite">{f.cols}</span>
-            <span className={cn("mt-2 flex h-10 items-center gap-2 rounded border border-dashed px-3 text-sm",
-              files[f.name] ? "border-tick/60 text-ink" : "border-rule text-graphite")}>
+            <span className={cn("mt-2 flex h-10 items-center gap-2 rounded-full border-4 border-dashed px-4 text-sm",
+              files[f.name] ? "border-tick text-ink" : "border-magenta text-graphite")}>
               <Upload size={15} aria-hidden />
               <span className="truncate">{files[f.name]?.name ?? "Choose a file"}</span>
               <input type="file" accept=".csv,text/csv" className="sr-only"

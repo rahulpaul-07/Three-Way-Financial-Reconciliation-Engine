@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/panel";
 import { TickMark } from "@/components/ui/tick-mark";
 import { BorderBeam } from "@/components/ui/border-beam";
 import { FlickeringGrid } from "@/components/ui/flickering-grid";
+import { FloatingShapes } from "@/components/ui/section";
 import { REPO } from "./links";
 
 // The settlement the hero reconciles. Real rows from datasets/01-reference,
@@ -40,30 +41,34 @@ function pickExample(run: Run | null) {
 export function Hero({ reference, meta }: { reference: Run | null; meta: Meta | null }) {
   const example = useMemo(() => pickExample(reference), [reference]);
   return (
-    <section id="top" className="relative overflow-hidden border-b border-rule">
+    <section id="top" data-accent="0" className="relative overflow-hidden border-b-8 border-double border-tick">
+      <div aria-hidden className="pattern-layer pattern-mesh" />
+      <div aria-hidden className="pattern-layer pattern-stripes" />
+      <span aria-hidden className="bg-word font-display left-[-1rem] top-10 text-[clamp(9rem,30vw,22rem)]">TIED</span>
+      <FloatingShapes seed={0} count={10} />
       <LedgerBackdrop />
-      <div className="relative mx-auto grid max-w-page gap-12 px-5 pb-16 pt-12 sm:px-8 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-center lg:gap-14 lg:pb-24 lg:pt-20">
-        <div className="max-w-xl">
+      <div className="relative z-10 mx-auto grid max-w-page gap-12 px-5 pb-16 pt-12 sm:px-8 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-center lg:gap-14 lg:pb-24 lg:pt-20">
+        <div className="max-w-2xl">
           <a href="#evidence"
-            className="group mb-7 inline-flex items-center gap-2 rounded-full border border-rule bg-sheet/60 px-3.5 py-1.5 text-[0.8rem] backdrop-blur hover:border-graphite/50">
+            className="group mb-7 inline-flex -rotate-2 items-center gap-2 rounded-full border-4 border-pencil bg-sheet px-4 py-2 text-sm font-bold shadow-hard-sm transition-transform hover:rotate-0 hover:scale-105">
             <span className="shiny-text">
               {meta ? `${meta.tests} tests · ${meta.headline.detection} unseen defects caught` : "Three-way payment reconciliation"}
             </span>
             <ArrowRight size={13} aria-hidden className="text-graphite transition-transform group-hover:translate-x-0.5" />
           </a>
-          <h1 className="text-display text-balance font-semibold">
+          <h1 className="ts-mega text-hero text-balance font-black uppercase">
             Three systems record every sale. <span className="gradient-text">They never agree.</span>
           </h1>
-          <p className="mt-6 max-w-prose text-lg leading-relaxed text-graphite">
+          <p className="mt-10 max-w-prose text-lg leading-relaxed text-ink sm:text-xl">
             The merchant's ledger has the order amount. The payment gateway has it less its fee.
             The bank has one netted credit a day or two later, covering dozens of orders, with no line items.
             This engine reconciles all three, explains every difference it can, and hands the rest to a person with a reason attached.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <ButtonLink href="#workbench" variant="ink" className="shimmer">Open the workbench</ButtonLink>
+            <ButtonLink href="#workbench" variant="ink" className="shimmer animate-pulse-glow">Open the workbench <ArrowRight size={18} strokeWidth={3} aria-hidden /></ButtonLink>
             <ButtonLink href={REPO}>Read the source</ButtonLink>
           </div>
-          <dl className="mt-10 grid max-w-md grid-cols-3 gap-x-6 border-t border-rule pt-5 text-sm">
+          <dl className="mt-12 grid max-w-lg grid-cols-3 gap-x-4 border-t-4 border-dashed border-magenta pt-6 text-sm">
             <Fact term="resolved on the reference batch" value={meta ? pct(meta.headline.resolution_rate) : undefined} />
             <Fact term="agreement with the answer key" value={meta ? pct(meta.headline.accuracy, 0) : undefined} />
             <Fact term="unseen defects caught" value={meta?.headline.detection} />
@@ -86,7 +91,7 @@ function LedgerBackdrop() {
   return (
     <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
       <div className="absolute left-1/2 top-[-18rem] h-[34rem] w-[64rem] max-w-[160%] -translate-x-1/2 rounded-full opacity-60 dark:opacity-100"
-        style={{ background: "radial-gradient(closest-side, rgb(var(--tick) / 0.22), rgb(var(--violet) / 0.08) 55%, transparent)" }} />
+        style={{ background: "radial-gradient(closest-side, rgb(var(--magenta) / 0.3), rgb(var(--violet) / 0.12) 55%, transparent)" }} />
       <div className="absolute inset-0" style={{ maskImage: mask, WebkitMaskImage: mask }}>
         <FlickeringGrid />
       </div>
@@ -110,8 +115,8 @@ function useIntro(ms: number) {
 function Fact({ term, value }: { term: string; value?: string }) {
   return (
     <div>
-      <dd className="num font-serif text-2xl text-ink">{value ?? <Skeleton className="h-7 w-14" />}</dd>
-      <dt className="mt-1 leading-snug text-graphite">{term}</dt>
+      <dd className="num ts-2 font-display text-3xl text-ink sm:text-4xl">{value ?? <Skeleton className="h-7 w-14" />}</dd>
+      <dt className="mt-2 text-xs font-bold uppercase leading-snug tracking-wide text-tick">{term}</dt>
     </div>
   );
 }
@@ -125,8 +130,8 @@ function ReconcileSheet({ settlement, lines, bank }: NonNullable<ReturnType<type
   const intro = useIntro(7500);
 
   return (
-    <figure>
-      <div className="relative overflow-hidden rounded-lg border border-rule bg-sheet shadow-[0_30px_80px_-40px_rgb(var(--tick)/0.45)]">
+    <figure data-accent="1">
+      <div className="relative overflow-hidden rounded-3xl border-4 border-pencil bg-sheet shadow-hard-lg md:rotate-1">
         {intro && <BorderBeam size={160} duration={3.5} />}
         <div className="scroll-x">
           <table className="w-full border-collapse whitespace-nowrap text-[0.8rem] sm:min-w-[33rem] sm:text-sm">

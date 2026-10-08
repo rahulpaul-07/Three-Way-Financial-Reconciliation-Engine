@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Panel, Skeleton } from "@/components/ui/panel";
 import { BlurFade } from "@/components/ui/blur-fade";
 import { SectionHeader } from "@/components/ui/section-header";
+import { Section } from "@/components/ui/section";
 import { Tabs, TabPanel } from "@/components/ui/tabs";
 import type { Health } from "@/lib/api";
 
@@ -30,7 +31,7 @@ export function AgentSection({ engine }: { engine: { state: EngineState; health:
   const t = traces.data?.traces[pick];
 
   return (
-    <section id="agent" className="border-b border-rule">
+    <Section id="agent" accent={4} word="AGENT">
       <div className="mx-auto max-w-page px-5 py-20 sm:px-8 lg:py-28">
         <SectionHeader folio="04" eyebrow="The agent" title="The model proposes; code decides.">
           Records the deterministic tiers cannot close go to a bounded agent. It chooses which of nine investigation tools to call,
@@ -149,7 +150,7 @@ export function AgentSection({ engine }: { engine: { state: EngineState; health:
         )}
         </TabPanel>
       </div>
-    </section>
+    </Section>
   );
 }
 

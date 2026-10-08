@@ -7,7 +7,7 @@ import { REPO } from "./links";
 
 const STATUS: Record<EngineState, { text: string; dot: string; title: string }> = {
   checking: { text: "Checking engine", dot: "bg-graphite animate-pulse", title: "Looking for the live engine" },
-  live: { text: "Engine live", dot: "bg-tick", title: "Runs, uploads and generated batches use the live engine" },
+  live: { text: "Engine live", dot: "bg-tick shadow-[0_0_10px_rgb(var(--tick))]", title: "Runs, uploads and generated batches use the live engine" },
   waking: { text: "Engine starting", dot: "bg-pencil animate-pulse", title: "The free-tier instance sleeps when idle and takes 30 to 60 seconds to start. Recorded runs work meanwhile." },
   offline: { text: "Recorded data", dot: "bg-graphite", title: "The live engine is unreachable, so the page shows recorded runs" },
 };
@@ -62,12 +62,12 @@ export function NavBar({ engine }: { engine: Engine }) {
   const s = STATUS[engine.state];
   const seconds = Math.round(engine.waitedMs / 1000);
   return (
-    <header className="sticky top-0 z-40 border-b border-rule/80 bg-paper/90 backdrop-blur"
+    <header className="sticky top-0 z-50 border-b-4 border-magenta bg-paper/90 backdrop-blur"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
       <nav className="mx-auto flex h-14 max-w-page items-center gap-6 px-5 sm:px-8" aria-label="Main">
-        <a href="#top" className="flex items-center gap-2 font-serif text-[1.05rem] font-semibold">
-          <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden>
-            <rect width="32" height="32" rx="6" className="fill-ink" />
+        <a href="#top" className="group flex items-center gap-2 font-serif text-[1.05rem] font-black uppercase tracking-tight">
+          <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden className="transition-transform duration-300 group-hover:rotate-[360deg]">
+            <rect width="32" height="32" rx="16" className="fill-magenta" />
             <path d="M8 17l5 5 11-12" className="stroke-paper" strokeWidth="3.2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <span className="hidden sm:inline">Three-way reconciliation</span>
@@ -76,19 +76,19 @@ export function NavBar({ engine }: { engine: Engine }) {
         <div className="ml-auto hidden items-center gap-1 text-sm lg:flex">
           {LINKS.map((l) => (
             <a key={l.id} href={`#${l.id}`} aria-current={active === l.id ? "location" : undefined}
-              className={cn("relative rounded px-2.5 py-1.5 transition-colors",
-                active === l.id ? "text-ink" : "text-graphite hover:text-ink")}>
+              className={cn("relative rounded-full px-3 py-2 text-xs font-black uppercase tracking-widest transition-all hover:-rotate-2 hover:scale-105",
+                active === l.id ? "text-pencil" : "text-graphite hover:text-tick")}>
               {l.label}
               {active === l.id && (
                 <motion.span layoutId="nav-active" aria-hidden
-                  className="absolute inset-x-2.5 -bottom-[0.6rem] h-0.5 rounded-full bg-tick"
+                  className="absolute inset-x-2.5 -bottom-[0.9rem] h-1.5 rounded-full bg-gradient-to-r from-magenta via-tick to-pencil"
                   transition={{ type: "spring", stiffness: 500, damping: 40 }} />
               )}
             </a>
           ))}
         </div>
         <span title={s.title} aria-live="polite"
-          className="ml-auto flex items-center gap-2 rounded-full border border-rule px-2.5 py-1 text-xs text-graphite lg:ml-2">
+          className="ml-auto flex items-center gap-2 rounded-full border-4 border-dashed border-violet px-3 py-1 text-xs font-bold text-graphite lg:ml-2">
           <span className={cn("h-2 w-2 rounded-full", s.dot)} aria-hidden />
           {s.text}
           {engine.state === "waking" && seconds > 2 && <span className="num">{seconds}s</span>}
@@ -98,12 +98,12 @@ export function NavBar({ engine }: { engine: Engine }) {
             </button>
           )}
         </span>
-        <a href={REPO} className="text-graphite hover:text-ink" aria-label="Source on GitHub">
-          <Github size={18} />
+        <a href={REPO} className="rounded-full border-4 border-pencil p-1.5 text-pencil transition-transform hover:rotate-12 hover:scale-110 hover:bg-pencil hover:text-paper" aria-label="Source on GitHub">
+          <Github size={18} strokeWidth={2.5} />
         </a>
       </nav>
       <motion.div aria-hidden style={{ scaleX: progress }}
-        className="h-px origin-left bg-tick" />
+        className="h-1.5 origin-left bg-gradient-to-r from-magenta via-tick to-pencil" />
     </header>
   );
 }

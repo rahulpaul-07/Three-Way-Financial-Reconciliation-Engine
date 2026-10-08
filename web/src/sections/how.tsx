@@ -5,6 +5,7 @@ import { cn, int, pct } from "@/lib/utils";
 import { AnimatedBeam } from "@/components/ui/animated-beam";
 import { BlurFade } from "@/components/ui/blur-fade";
 import { SectionHeader } from "@/components/ui/section-header";
+import { Section } from "@/components/ui/section";
 import { SEVERITY_BG, SEVERITY_NAME, SEVERITY_TEXT, SEVERITY_VAR } from "@/components/ui/severity";
 
 // The tiers genuinely are a sequence -- each runs only on what the one before
@@ -18,7 +19,7 @@ const TIERS = [
 
 export function HowItWorks({ run }: { run: Run | null }) {
   return (
-    <section id="how" className="border-b border-rule">
+    <Section id="how" accent={1} word="FILES">
       <div className="mx-auto max-w-page px-5 py-20 sm:px-8 lg:py-28">
         <SectionHeader folio="01" eyebrow="How it works" title="Four files in. Every record out, with a reason.">
           Matching is a cascade of progressively weaker methods. Every resolution records the tier that produced it,
@@ -28,7 +29,7 @@ export function HowItWorks({ run }: { run: Run | null }) {
         <BlurFade className="mt-12"><Flow run={run} /></BlurFade>
         <BlurFade className="mt-16"><Cascade run={run} /></BlurFade>
       </div>
-    </section>
+    </Section>
   );
 }
 
@@ -56,10 +57,10 @@ function Flow({ run }: { run: Run | null }) {
   return (
     <figure>
       {/* Stacked on phones, side by side from sm up; the beams follow. */}
-      <div ref={box} className="relative grid items-center gap-y-12 rounded-lg border border-rule bg-sheet px-4 py-8 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)] sm:gap-x-12 sm:gap-y-0 sm:px-10 sm:py-10 lg:gap-x-28">
+      <div ref={box} className="relative grid items-center gap-y-12 card-max shadow-hard-sm px-4 py-8 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)] sm:gap-x-12 sm:gap-y-0 sm:px-10 sm:py-10 lg:gap-x-28">
         <div className="relative z-10 grid grid-cols-2 gap-2.5 sm:block sm:space-y-4">
           {SOURCES.map((s, i) => (
-            <div key={s.key} ref={src[i]} className="rounded-md border border-rule bg-paper px-2.5 py-2 sm:px-3.5 sm:py-2.5">
+            <div key={s.key} ref={src[i]} className="rounded-2xl border-4 border-violet bg-paper px-2.5 py-2 sm:px-3.5 sm:py-2.5">
               <div className="text-[0.8rem] font-medium sm:text-sm">{s.name}</div>
               <div className="truncate font-mono text-[0.68rem] text-graphite sm:text-xs">
                 {run ? `${int(run.sources[s.key])} ${s.unit}` : s.file}
@@ -68,14 +69,14 @@ function Flow({ run }: { run: Run | null }) {
           ))}
         </div>
 
-        <div ref={engine} className="relative z-10 rounded-lg bg-ink px-3 py-5 text-paper sm:px-5 sm:py-6 dark:bg-sheet dark:text-ink dark:ring-1 dark:ring-tick/50">
+        <div ref={engine} className="relative z-10 rotate-1 rounded-3xl border-4 border-dashed border-pencil bg-sheet px-3 py-5 text-ink shadow-hard-sm sm:px-5 sm:py-6">
           <div className="font-mono text-[0.68rem] uppercase tracking-[0.14em] opacity-60 sm:text-xs">Engine</div>
           <div className="mt-1 font-serif text-base leading-tight sm:text-xl">Tiered matcher</div>
           <ol className="mt-3 hidden space-y-1 text-xs opacity-80 sm:block">
             {TIERS.map((t, i) => <li key={t.name}><span className="num opacity-60">{i}</span> {t.name}</li>)}
           </ol>
           {run && (
-            <div className="mt-3 border-t border-paper/15 pt-3 dark:border-ink/15 text-[0.72rem] sm:text-xs">
+            <div className="mt-3 border-t-2 border-dashed border-magenta pt-3 text-[0.72rem] sm:text-xs">
               <span className="num font-medium">{int(run.summary.entities)}</span> records,{" "}
               <span className="num font-medium">{pct(run.summary.resolution_rate)}</span> resolved
             </div>
@@ -84,7 +85,7 @@ function Flow({ run }: { run: Run | null }) {
 
         <div className="relative z-10 grid grid-cols-2 gap-2.5 sm:block sm:space-y-4">
           {OUTCOMES.map((k, i) => (
-            <div key={k} ref={out[i]} className="flex items-center justify-between gap-2 rounded-md border border-rule bg-paper px-2.5 py-2 sm:px-3.5 sm:py-2.5">
+            <div key={k} ref={out[i]} className="flex items-center justify-between gap-2 rounded-2xl border-4 border-violet bg-paper px-2.5 py-2 sm:px-3.5 sm:py-2.5">
               <span className={cn("flex min-w-0 items-center gap-2 text-[0.8rem] font-medium sm:text-sm", SEVERITY_TEXT[k])}>
                 <span aria-hidden className={cn("h-2 w-2 shrink-0 rounded-full", SEVERITY_BG[k])} />
                 <span className="truncate">{SEVERITY_NAME[k]}</span>
@@ -96,7 +97,7 @@ function Flow({ run }: { run: Run | null }) {
 
         {src.map((r, i) => (
           <AnimatedBeam key={`s${i}`} containerRef={box} fromRef={r} toRef={engine}
-            curvature={(1.5 - i) * 18} delay={i * 0.35} color="rgb(var(--ink))" pathOpacity={0.18} active={visible} />
+            curvature={(1.5 - i) * 18} delay={i * 0.35} color="rgb(var(--magenta))" pathOpacity={0.5} active={visible} />
         ))}
         {out.map((r, i) => (
           <AnimatedBeam key={`o${i}`} containerRef={box} fromRef={engine} toRef={r}
@@ -131,7 +132,7 @@ function Cascade({ run }: { run: Run | null }) {
   return (
     <div className="grid gap-10 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
       <div>
-        <h3 className="text-2xl font-medium">The cascade</h3>
+        <h3 className="ts-1 text-3xl font-black uppercase tracking-tight">The cascade</h3>
         <p className="mt-3 max-w-prose leading-relaxed text-graphite">
           Each tier sees only what the tier before it could not close. The bars show how much of the batch is still open
           as it enters each one. Select a tier for what it does.
@@ -139,20 +140,20 @@ function Cascade({ run }: { run: Run | null }) {
       </div>
       <ol className="relative">
         {/* The rail the steps hang from. */}
-        <span aria-hidden className="absolute bottom-6 left-[0.9rem] top-6 w-px bg-rule" />
+        <span aria-hidden className="absolute bottom-6 left-[0.9rem] top-6 w-1 rounded bg-gradient-to-b from-magenta via-tick to-pencil" />
         {TIERS.map((t, i) => {
           const entering = left[i];
           const share = total ? entering / total : 0;
           const isOpen = open === i;
           return (
             <li key={t.name} className="relative pb-3 pl-12 last:pb-0">
-              <span aria-hidden className={cn("num absolute left-0 top-3 flex h-7 w-7 items-center justify-center rounded-full border text-xs transition-colors",
-                isOpen ? "border-ink bg-ink text-paper" : "border-rule bg-paper text-graphite")}>{i}</span>
+              <span aria-hidden className={cn("num absolute left-0 top-3 flex h-7 w-7 items-center justify-center rounded-full border-4 text-xs font-black transition-transform",
+                isOpen ? "scale-110 border-pencil bg-magenta text-paper" : "border-violet bg-paper text-graphite")}>{i}</span>
               <button onClick={() => setOpen(isOpen ? -1 : i)} aria-expanded={isOpen}
-                className={cn("group w-full rounded-lg border px-4 py-3 text-left transition-colors",
-                  isOpen ? "border-ink/30 bg-sheet" : "border-transparent hover:border-rule hover:bg-sheet/60")}>
+                className={cn("group w-full rounded-2xl border-4 px-4 py-3 text-left transition-all duration-300",
+                  isOpen ? "border-magenta bg-sheet shadow-hard-sm" : "border-transparent hover:-rotate-1 hover:border-violet hover:bg-sheet/60")}>
                 <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                  <span className="font-serif text-lg font-medium sm:text-xl">{t.name}</span>
+                  <span className="font-serif text-lg font-black uppercase sm:text-xl">{t.name}</span>
                   {run && (
                     <span className="num ml-auto text-sm text-graphite">
                       {i === 0
@@ -164,7 +165,7 @@ function Cascade({ run }: { run: Run | null }) {
                   )}
                 </div>
                 {run && (
-                  <div className="mt-2 h-1.5 w-full rounded-full bg-rule/40" role="img"
+                  <div className="mt-2 h-3 w-full rounded-full border-2 border-violet bg-paper" role="img"
                     aria-label={`${pct(share, 0)} of records still open entering this tier`}>
                     <div className={cn("h-full rounded-full transition-[width] duration-700", i === 3 ? "bg-redink/70" : "bg-tick")}
                       style={{ width: `${Math.max(share * 100, 0.6)}%`, opacity: 1 - i * 0.18 }} />
