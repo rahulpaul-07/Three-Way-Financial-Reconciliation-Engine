@@ -1,0 +1,10 @@
+# The multi-agent router (src/multi_agent/): Google ADK agents that take their
+# tools from the MCP server over stdio. Kept apart from requirements-agents.txt
+# so the MCP, LangGraph and SQL layers do not inherit ADK's much larger
+# dependency tree. mcp is pinned to the same version as there, because the
+# router launches src/mcp_server.py as a subprocess.
+-r requirements-dev.txt
+mcp==2.2.0
+# 2.11.0 was the newest release on 2026-10-09; ADK 2.x changes its API between
+# minor versions, so this is an exact pin.
+google-adk==2.11.0
