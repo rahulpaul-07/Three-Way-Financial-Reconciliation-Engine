@@ -96,12 +96,54 @@ python3 src/report.py --data data --traces agent_traces.json \
                       --qa qa_answers.json --out report.html
 python3 src/ask.py --data data --demo --json qa_answers.json
 python3 -m pytest tests/ -q                           # 179 tests
-python3 -m pytest tests_agents/ -q                    # 105 more; needs requirements-agents.txt, Python 3.11+
+python3 -m pytest tests_agents/ -q                    # 127 more; needs requirements-agents.txt, Python 3.11+
 python3 src/evaluate.py --stress --compound --seeds 3 # where it breaks
 ```
 
 Only `investigate.py` and `sql_ask.py` need a language model. Everything else is deterministic
 and runs with no API key.
+
+## Live evaluation
+
+Both agent engines (the loop in `agent.py` and the LangGraph port in
+`agent_graph.py`) were run against a live model on the 13 reference-batch
+exceptions. Model `claude-sonnet-5-5`, seed 42, N=2 repetitions per engine,
+run on 8 Oct 2026 (UTC). This is separate from the "Agent investigation" row
+above, which is one earlier run of the loop engine. Result files are in
+`results/engine_compare/`.
+
+| | Run 1, before the fix | Run 2, after the fix |
+|---|---|---|
+| Result file | `anthropic_claude-sonnet-5-5_full-sonnet.json` | `anthropic_claude-sonnet-5-5_full-sonnet-fix1.json` |
+| Code | `29f029e` plus uncommitted changes, before the subset-pool fix | commit `294dab2` |
+| Model calls, cost | 180, about $1.27 | 192, about $1.30 |
+| Loop: agreed with matcher (of 26) | 20, kappa 0.72 | 21, kappa 0.77 |
+| LangGraph: agreed with matcher (of 26) | 24, kappa 0.90 | 25, kappa 0.95 |
+| Step-limit escalations, loop / LangGraph | 3 / 0 | 4 / 1 |
+| Wrong answers given as answered, loop / LangGraph | 3 / 2 | 1 / 0 |
+| BNK000004 and BNK000006 classified correctly (of 8) | 3 | 8 |
+
+A "wrong answer given as answered" is an investigation that ended in a verdict
+(not an escalation) that disagrees with the matcher. Each investigation is one
+engine, one repetition, one exception, so 26 per engine per run.
+
+Run 1 found a defect in the agent's tooling. BNK000006 is a planted orphan bank
+credit of 2750.00. The `find_subset_summing_to` tool searched payments that
+were already paid out in a settlement, found three that happened to sum to
+2750.00, and all four runs of it (both engines, both repetitions) called it a
+split settlement and marked it resolved. The tool now excludes payments already
+included in a settlement and tells the model how many it left out; in run 2 both
+orphan credits were classified correctly in every run.
+
+**What this does not show.** There are 13 exceptions, 2 repetitions and one
+model, so a change of one or two investigations is within what repeating the
+same run can produce. The fix is shown to remove the BNK000006 and BNK000004
+errors, not to improve the agent in general; escalations on the fee-mismatch
+orders went up from 3 to 5, probably variance near the 5-round cap, but that
+is not established. Nothing here supports a claim that one engine is
+better than the other: the loop escalated more often in both runs, and the cause
+is not known. These are agreement figures against the deterministic matcher on
+data from this repo's own generator, not accuracy on real books.
 
 ## The problem
 
@@ -225,9 +267,10 @@ selects its own investigation tools. On the reference batch it answered all 13
 exceptions and reached the same classification as the deterministic engine on 12
 of them, across 44 model calls and 8 distinct tools. No tool ordering or
 preference is specified; the distribution below is what it chose. These figures
-are from the loop engine (`agent.py`). The LangGraph engine and the MCP server
-came later and have not been run against a live model; a test holds the graph to
-the loop's behaviour on scripted conversations instead.
+are from the loop engine (`agent.py`). The LangGraph engine came later and has
+since been run live on the same batch (see [Live evaluation](#live-evaluation));
+the MCP server has not been run against a live model. A test also holds the graph
+to the loop's behaviour on scripted conversations.
 
 The agent contributes investigative strategy. The tools contribute truth. It
 performs no arithmetic and asserts no relationship a tool has not confirmed. A
@@ -300,12 +343,15 @@ What it does not prove: that the SQL asked the right question. A query that join
 on the wrong key returns real numbers, and the answer passes the check. That is
 why every answer carries the exact SQL that produced it.
 
-None of the three has been run against a live model yet. The agent loops are
-tested with a scripted provider that plays a model, including a misbehaving one,
-and the SQL guards are tested directly with hostile queries. 105 tests in
-`tests_agents/`, mutation-checked: deliberate bugs were introduced one at a time
-(the authorizer, the function allowlist, the step limit, the closed tool registry,
-a wrapper that altered a result) and each was caught. Removing the work budget is
+The LangGraph engine has now been run against a live model (see
+[Live evaluation](#live-evaluation)); the MCP server and the SQL layer have not.
+The agent loops are tested with a scripted provider that plays a model,
+including a misbehaving one, and the SQL guards are tested directly with hostile
+queries. 127 tests in `tests_agents/`, which also cover the live-evaluation
+harness and the subset-sum filter. The tests for the three layers are
+mutation-checked: deliberate bugs were introduced one at a time (the authorizer,
+the function allowlist, the step limit, the closed tool registry, a wrapper that
+altered a result) and each was caught. Removing the work budget is
 caught as a test that no longer finishes.
 
 ## Where it breaks
@@ -486,7 +532,7 @@ Every push runs six jobs, and a separate workflow publishes the dashboard to Git
 | `reconcile` | a clean checkout generates, reconciles, grades and reports end to end, and no unseen defect class passes silently |
 | `web` | the site data builds from a clean checkout, the dashboard type-checks, builds and prerenders, and the engine serves it |
 | `provider-degradation` | the engine reconciles correctly with **no** language model configured |
-| `agent-layers` | the 105 tests for the MCP server, LangGraph agent and SQL layer pass on Python 3.11 through 3.13 |
+| `agent-layers` | the 127 tests in `tests_agents/` (MCP server, LangGraph agent, SQL layer, live-evaluation harness, subset-sum filter) pass on Python 3.11 through 3.13 |
 
 The `reconcile` job asserts the exact accuracy figure. A regression that lowers
 it fails the build rather than quietly changing a number in this file.

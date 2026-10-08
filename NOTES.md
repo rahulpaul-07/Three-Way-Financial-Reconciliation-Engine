@@ -886,3 +886,107 @@ was BNK000004. The published traces (`web/public/data/agent_traces.json`, 44
 model calls) flag `setl_0010` as the one disagreement and show BNK000006 as
 agreed. So BNK000006 is new in this run, and it is the model, not the matcher,
 that moved.
+
+---
+
+### 2026-10-09 - find_subset_summing_to ignored whether a payment was already settled.
+
+Cause of the BNK000006 false resolution above. The tool built its candidate
+pool from every captured, processed or lost payment in the date window, without
+looking at `settlement_id`. For BNK000006 it returned three payments that sum
+to 2750.00 but are already paid out in `setl_0002` and `setl_0005`, and the
+agent called that a split settlement.
+
+What changed, in `src/tools.py` only:
+
+- The pool now leaves out payments whose `settlement_id` is a settlement in
+  the report. Membership comes from the gateway row's `settlement_id`, the same
+  field `check_settlement_composition` and the matcher use; `settlements.csv`
+  holds totals and no member list.
+- A payment whose `settlement_id` is not in the report stays in the pool. The
+  matcher already treats that as a defect, and such a payment is in no
+  reported payout, so it could be what an orphan credit is paying.
+- The result says what happened: the summary ends "; N already-settled
+  payment(s) excluded" when N is above zero, and the evidence carries
+  `excluded_settled` on success and on failure.
+- The model reads the tool schema, so the description of
+  `find_subset_summing_to` gained one sentence at the end: "Payments already
+  included in a settlement are excluded, and the result says how many." The
+  rest of the description is unchanged. The system prompt, the step cap and
+  both engines are untouched.
+
+The deterministic engine does not call this tool (the matcher has its own
+`subset_sum`), so the 90.8% resolved figure and the 100% classification
+accuracy are unaffected; the CI accuracy check still reads 129 (100.0%).
+Tests are in `tests_agents/test_subset_tool.py`. With the filter removed, three
+of them fail, including the BNK000006 regression. No reference-batch exception
+is a genuine split of unsettled payments, so the "still found" test uses
+pay_000101 and pay_000005, two unsettled 349.00 payments on 21 Aug.
+
+Not fixed here, and the next change after this one: the word "split
+settlement" means two different things. In the matcher it is one settlement
+paid across several bank lines (instalments). The agent used the same label
+for several payments summing to one bank credit, which is nearly the reverse.
+The taxonomy text the model sees ("one settlement paid in several instalments
+that sum exactly") says the first meaning, but nothing in the tool result or
+the prompt stops the model reading its subset-sum hit as the second. Whether
+that wording misled it is not known; I have not tested it. The re-run after
+this fix measures only the filter. The "tool calls" against "rounds" wording
+in the prompt is also still open.
+
+---
+
+### 2026-10-09 - Re-ran the live comparison after the subset-pool fix.
+
+Same model (claude-sonnet-5-5), seed 42, N=2, both engines. Results file:
+`results/engine_compare/anthropic_claude-sonnet-5-5_full-sonnet-fix1.json`,
+recorded at git 294dab2, 192 model calls, about $1.30. The first run was 180
+calls and about $1.27; it recorded git 29f029e and was made with the harness
+still uncommitted.
+
+| | loop, before | loop, after | langgraph, before | langgraph, after |
+|---|---|---|---|---|
+| Agreed with matcher (of 26) | 20 | 21 | 24 | 25 |
+| Cohen's kappa | 0.72 | 0.77 | 0.90 | 0.95 |
+| Ended at step_limit | 3 | 4 | 0 | 1 |
+| Wrong answers given as answered | 3 | 1 | 2 | 0 |
+| Marked resolved while disagreeing with the matcher | 3 | 0 | 2 | 0 |
+
+"Wrong answer given as answered" means the investigation ended in a verdict, not
+an escalation, and the verdict differs from the matcher. Counted from the two
+JSON files: 5 before (BNK000004 once and BNK000006 twice in the loop, BNK000006
+twice in the graph) and 1 after. The one after is the loop on
+GAP_BEFORE_BNK000014, repetition 1, which answered `settlement_not_in_bank`
+where the matcher says `missing_bank_row`. Kappa is the project's
+`cohens_kappa` over the 26 verdicts per engine.
+
+BNK000006 and BNK000004 went from 3 of 8 correct to 8 of 8 (two records, two
+engines, two repetitions). That is the intended effect of the fix and the
+cleanest result in the run: the tool no longer hands the model settled
+payments, so there is nothing for it to mistake for a split.
+
+Escalations on the fee-mismatch orders rose from 3 of 20 to 5 of 20 (5 orders,
+2 engines, 2 repetitions). I checked that none of those 40 investigations, in
+either run, called `find_subset_summing_to`, so the fix cannot have touched
+them. They are probably variance near the 5-round cap, but at N=2 on 13
+records that is not established and I have not looked at the individual
+traces.
+
+Across both runs the loop hit the step limit in 7 of 52 investigations and the
+graph in 1 of 52, although the two cap implementations are identical in logic
+(see the entry above). I have now seen that twice. I do not know the cause, and
+the ORD4034 entry above, which called a single case model variance, does not
+explain a gap this consistent. Not investigated further.
+
+What this does not show: 13 exceptions, N=2, one model. It does not show that
+either engine is better, and it does not show the agent improved in general.
+The README has a "Live evaluation" section with both runs, kept apart from the
+earlier agent figures.
+
+README housekeeping in the same change: the `tests_agents` count is now 127
+(it said 105), in the three places it appeared. Three sentences saying the
+LangGraph engine had never been run against a live model (two in the README, one
+in ARCHITECTURE.md) now say it has, and still say the MCP server and the SQL
+layer have not.
+
+Correction: the loop/graph step-numbering difference for a refused tool is deliberate and pinned by a test (see README), not an inconsistency.
