@@ -19,6 +19,8 @@ export default {
         pencil: v("pencil"),
         settled: v("settled"),
         violet: v("violet"),
+        magenta: v("magenta"),
+        orange: v("orange"),
       },
       fontFamily: {
         // One family throughout. `serif` is kept as a name because headings
@@ -36,10 +38,10 @@ export default {
         xl: ["1.5625rem", { lineHeight: "2.1rem" }],
         "2xl": ["1.953rem", { lineHeight: "2.4rem" }],
         "3xl": ["2.441rem", { lineHeight: "2.8rem" }],
-        display: ["clamp(2.5rem, 5.4vw, 4.4rem)", { lineHeight: "1.02", letterSpacing: "-0.04em" }],
+        hero: ["clamp(2.5rem, 5.4vw, 5rem)", { lineHeight: "0.95", letterSpacing: "-0.04em" }],
       },
       maxWidth: { prose: "68ch", page: "76rem" },
-      borderRadius: { sm: "6px", DEFAULT: "8px", md: "10px", lg: "14px" },
+      borderRadius: { sm: "6px", DEFAULT: "8px", md: "12px", lg: "24px" },
     },
   },
   plugins: [],

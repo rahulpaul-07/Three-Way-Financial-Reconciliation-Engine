@@ -10,13 +10,13 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variants: Record<Variant, string> = {
-  ink: "bg-ink text-paper hover:bg-ink/90 disabled:bg-ink/40",
-  outline: "border border-ink/35 text-ink hover:border-ink hover:bg-ink/[0.04] disabled:opacity-50",
-  quiet: "text-graphite hover:text-ink hover:bg-ink/[0.05] disabled:opacity-50",
+  ink: "btn-primary hover:z-10 disabled:opacity-50",
+  outline: "btn-secondary disabled:opacity-50",
+  quiet: "btn-ghost text-ink disabled:opacity-50",
 };
 const sizes: Record<Size, string> = {
-  sm: "h-8 px-3 text-sm gap-1.5",
-  md: "h-10 px-4 text-[0.95rem] gap-2",
+  sm: "h-10 px-5 text-xs gap-1.5",
+  md: "h-14 px-9 text-sm gap-2",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -24,7 +24,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     <button
       ref={ref}
       className={cn(
-        "inline-flex items-center justify-center rounded font-medium transition-colors disabled:cursor-not-allowed",
+        "btn-max inline-flex items-center justify-center disabled:cursor-not-allowed",
         variants[variant], sizes[size], className,
       )}
       {...props}
@@ -37,7 +37,7 @@ export function ButtonLink({ className, variant = "outline", size = "md", ...pro
   React.AnchorHTMLAttributes<HTMLAnchorElement> & { variant?: Variant; size?: Size }) {
   return (
     <a
-      className={cn("inline-flex items-center justify-center rounded font-medium transition-colors",
+      className={cn("btn-max inline-flex items-center justify-center",
         variants[variant], sizes[size], className)}
       {...props}
     />

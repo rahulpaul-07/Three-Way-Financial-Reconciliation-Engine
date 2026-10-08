@@ -7,12 +7,12 @@ export function Segmented<T extends string>({ value, onChange, options, label, c
 }) {
   return (
     <div role="radiogroup" aria-label={label}
-      className={cn("inline-flex flex-wrap gap-1 rounded border border-rule bg-sheet p-1", className)}>
+      className={cn("inline-flex flex-wrap gap-1 rounded-full border-4 border-tick bg-sheet/80 p-1", className)}>
       {options.map((o) => (
         <button key={o.value} role="radio" aria-checked={value === o.value} title={o.hint}
           onClick={() => onChange(o.value)}
-          className={cn("rounded-sm px-3 py-1.5 text-sm transition-colors",
-            value === o.value ? "bg-ink text-paper" : "text-graphite hover:bg-ink/[0.06] hover:text-ink")}>
+          className={cn("rounded-full px-4 py-2 text-sm font-bold uppercase tracking-wide transition-all duration-200",
+            value === o.value ? "scale-105 bg-pencil text-paper shadow-[3px_3px_0_rgb(var(--magenta))]" : "text-graphite hover:bg-magenta/20 hover:text-ink")}>
           {o.label}
         </button>
       ))}

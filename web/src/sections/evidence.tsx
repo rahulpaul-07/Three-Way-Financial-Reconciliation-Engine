@@ -6,6 +6,7 @@ import { useData } from "@/hooks/use-data";
 import { Panel, Skeleton } from "@/components/ui/panel";
 import { BlurFade } from "@/components/ui/blur-fade";
 import { SectionHeader } from "@/components/ui/section-header";
+import { Section } from "@/components/ui/section";
 import { REPO } from "./links";
 
 const axis = { fontSize: 11, fill: "rgb(var(--graphite))" };
@@ -19,7 +20,7 @@ export function Evidence({ meta }: { meta: Meta | null }) {
   const bench = useData(snapshot.benchmarks);
   const b = bench.data;
   return (
-    <section id="evidence" className="border-b border-rule">
+    <Section id="evidence" accent={3} word="PROOF">
       <div className="mx-auto max-w-page px-5 py-20 sm:px-8 lg:py-28">
         <SectionHeader folio="03" eyebrow="Evidence" title="One good run proves little.">
           These are measured across independently generated batches, under rising defect density, at scale, and against
@@ -37,7 +38,7 @@ export function Evidence({ meta }: { meta: Meta | null }) {
           </div>
         )}
       </div>
-    </section>
+    </Section>
   );
 }
 

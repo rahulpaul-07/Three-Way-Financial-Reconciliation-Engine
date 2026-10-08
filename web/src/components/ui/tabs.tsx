@@ -40,7 +40,7 @@ export function Tabs<T extends string>({ items, value, onChange, label, variant 
   return (
     <div role="tablist" aria-label={label}
       className={cn("scroll-x relative flex max-w-full",
-        pill ? "w-fit gap-1 rounded-lg border border-rule bg-sheet p-1" : "gap-1 border-b border-rule",
+        pill ? "w-fit gap-1 rounded-full border-4 border-tick bg-sheet/80 p-1" : "gap-1 border-b-4 border-dashed border-magenta",
         className)}>
       {items.map((t, i) => {
         const active = t.value === value;
@@ -49,20 +49,20 @@ export function Tabs<T extends string>({ items, value, onChange, label, variant 
             role="tab" id={`${base}-tab-${t.value}`} aria-selected={active}
             aria-controls={`${base}-panel-${t.value}`} tabIndex={active ? 0 : -1}
             onClick={() => onChange(t.value)} onKeyDown={(e) => onKey(e, i)}
-            className={cn("relative shrink-0 whitespace-nowrap text-sm font-medium transition-colors",
-              pill ? "rounded-md px-3.5 py-1.5" : "px-3 pb-2.5 pt-1.5",
-              active ? (pill ? "text-paper" : "text-ink") : "text-graphite hover:text-ink")}>
+            className={cn("relative shrink-0 whitespace-nowrap text-sm font-bold uppercase tracking-wide transition-colors",
+              pill ? "rounded-full px-4 py-2" : "px-3 pb-3 pt-2",
+              active ? (pill ? "text-paper" : "text-pencil") : "text-graphite hover:text-ink")}>
             {active && (
               <motion.span layoutId={`${base}-indicator`} aria-hidden
                 transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 500, damping: 40 }}
                 className={cn("absolute",
-                  pill ? "inset-0 rounded-md bg-ink" : "inset-x-2 -bottom-px h-0.5 rounded-full bg-tick")} />
+                  pill ? "inset-0 rounded-full bg-pencil shadow-[3px_3px_0_rgb(var(--magenta))]" : "inset-x-1 -bottom-1 h-1.5 rounded-full bg-gradient-to-r from-magenta via-tick to-pencil")} />
             )}
             <span className="relative z-10 inline-flex items-center gap-2">
               {t.label}
               {t.count != null && (
                 <span className={cn("num rounded px-1.5 text-xs",
-                  active ? (pill ? "bg-paper/20" : "bg-tick/15 text-tick") : "bg-rule/50")}>{t.count}</span>
+                  active ? (pill ? "bg-paper/20" : "bg-pencil/20 text-pencil") : "bg-violet/40")}>{t.count}</span>
               )}
             </span>
           </button>
