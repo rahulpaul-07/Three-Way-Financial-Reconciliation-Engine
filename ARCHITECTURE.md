@@ -275,7 +275,8 @@ Records the deterministic tiers cannot resolve go to a bounded agent that
 selects its own investigation tools from a registry of nine. It answered all 13
 exceptions on the reference batch and reached the same classification as the
 deterministic engine on 12 (Cohen's κ 0.90, an unstable estimate at this sample
-size).
+size). Measured with the loop engine in `agent.py`; the LangGraph port has
+not been run against a live model.
 
 Four constraints, **enforced in code rather than requested in the prompt**:
 
