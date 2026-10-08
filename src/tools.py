@@ -123,6 +123,13 @@ class InvestigationTools:
 
         Used when a bank credit has no settlement grouping -- the merchant
         received a lump sum and must work out what is inside it.
+
+        Payments already included in a settlement in the report are left out
+        of the pool: they were paid out under that settlement, so they cannot
+        also explain an unreferenced credit, and an exact sum over them is
+        coincidence. A settlement_id that is not in the report does not count
+        as settled, because such a payment is in no reported payout and could
+        be what this credit is paying.
         """
         try:
             anchor = date.fromisoformat(on_date)
@@ -131,9 +138,14 @@ class InvestigationTools:
                 "find_subset_summing_to", False, f"invalid date '{on_date}'"))
 
         lo = anchor - timedelta(days=window_days + 2)
-        pool = [t for t in self.txns
-                if lo <= t.txn_datetime.date() <= anchor
-                and t.status in ("captured", "processed", "lost")]
+        in_window = [t for t in self.txns
+                     if lo <= t.txn_datetime.date() <= anchor
+                     and t.status in ("captured", "processed", "lost")]
+        reported = {s.settlement_id for s in self.settlements}
+        pool = [t for t in in_window if t.settlement_id not in reported]
+        excluded = len(in_window) - len(pool)
+        note = (f"; {excluded} already-settled payment(s) excluded"
+                if excluded else "")
 
         values = [t.net_amount_paise for t in pool]
         idx = subset_sum(values, target_paise, max_terms=max_terms)
@@ -143,17 +155,18 @@ class InvestigationTools:
                 "find_subset_summing_to", False,
                 f"no subset of <= {max_terms} transactions in the "
                 f"{window_days}-day window sums to "
-                f"{paise_to_rupees_str(target_paise)}",
-                {"pool_size": len(pool), "max_terms": max_terms}))
+                f"{paise_to_rupees_str(target_paise)}{note}",
+                {"pool_size": len(pool), "max_terms": max_terms,
+                 "excluded_settled": excluded}))
 
         members = [pool[i] for i in idx]
         return self._record(ToolResult(
             "find_subset_summing_to", True,
             f"{len(members)} transaction(s) sum exactly to "
-            f"{paise_to_rupees_str(target_paise)}",
+            f"{paise_to_rupees_str(target_paise)}{note}",
             {"txn_ids": [t.txn_id for t in members],
              "amounts": [paise_to_rupees_str(t.net_amount_paise) for t in members],
-             "pool_size": len(pool)}))
+             "pool_size": len(pool), "excluded_settled": excluded}))
 
     # -- consistency checks -----------------------------------------------
 
@@ -318,7 +331,9 @@ TOOL_SCHEMA = [
         "name": "find_subset_summing_to",
         "description": "Determine which individual transactions compose a lump "
                        "amount. Use when a bank credit matches no single "
-                       "settlement and may be an unreported grouping.",
+                       "settlement and may be an unreported grouping. "
+                       "Payments already included in a settlement are "
+                       "excluded, and the result says how many.",
         "input_schema": {"type": "object", "properties": {
             "target_paise": {"type": "integer"},
             "on_date": {"type": "string"},
