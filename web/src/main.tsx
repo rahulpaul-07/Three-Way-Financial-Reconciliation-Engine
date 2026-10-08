@@ -1,6 +1,8 @@
 import { StrictMode } from "react";
 import { createRoot, hydrateRoot } from "react-dom/client";
-import "@fontsource-variable/geist";
+import "@fontsource-variable/outfit";
+import "@fontsource-variable/dm-sans";
+import "@fontsource/bungee/400.css";
 import "@fontsource/geist-mono/400.css";
 import "./index.css";
 import App from "./App";
