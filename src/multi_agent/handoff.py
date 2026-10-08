@@ -15,6 +15,7 @@ class Reason(StrEnum):
     NO_EVIDENCE = "no_evidence"
     STEP_LIMIT = "step_limit"
     MODEL_ERROR = "model_error"
+    PROVIDER_UNAVAILABLE = "provider_unavailable"
     UNGROUNDED_NUMBERS = "ungrounded_numbers"
     BUDGET_EXHAUSTED = "budget_exhausted"
 

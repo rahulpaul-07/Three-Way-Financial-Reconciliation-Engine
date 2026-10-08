@@ -11,6 +11,7 @@ import json
 import sys
 from pathlib import Path
 
+import httpx
 import pytest
 
 pytest.importorskip("google.adk")
@@ -34,6 +35,12 @@ def quota_error(text: str) -> genai_errors.APIError:
     return genai_errors.APIError(429, {"error": {"message": text}})
 
 
+def outage(code=503, headers=None) -> genai_errors.APIError:
+    response = httpx.Response(code, headers=headers or {})
+    return genai_errors.APIError(
+        code, {"error": {"message": "high demand", "status": "UNAVAILABLE"}}, response)
+
+
 def measured(script, tmp_path, cap=50):
     sleeps: list[float] = []
 
@@ -42,7 +49,8 @@ def measured(script, tmp_path, cap=50):
 
     ledger = Ledger(tmp_path / "ledger.json", cap)
     model = ev.MeasuredModel(model="scripted", inner=ScriptedLlm(script=list(script)),
-                             ledger=ledger, sleep=fake_sleep, waits=[], retries=0)
+                             ledger=ledger, sleep=fake_sleep, jitter=lambda: 0.0,
+                             waits=[], retries=0)
     return model, ledger, sleeps
 
 
@@ -92,9 +100,41 @@ class TestMeasuredModel:
         with pytest.raises(RetriesExhausted):
             drain(model)
 
+    @pytest.mark.parametrize("code", [500, 503, 504])
+    def test_a_provider_outage_that_clears_is_retried_with_backoff(self, tmp_path, code):
+        model, ledger, sleeps = measured([outage(code), outage(code), "ok"], tmp_path)
+        drain(model)
+        assert sleeps == [2.0, 4.0]                 # exponential, jitter pinned to zero
+        assert (ledger.calls, ledger.retries, model.retries) == (1, 2, 2)
+
+    def test_a_provider_outage_that_never_clears_stops_after_four_attempts(self, tmp_path):
+        model, ledger, sleeps = measured([outage()] * 10, tmp_path)
+        with pytest.raises(genai_errors.APIError) as caught:
+            drain(model)
+        assert caught.value.code == 503
+        assert len(model.inner.calls) == 4
+        assert sleeps == [2.0, 4.0, 8.0]
+        assert (ledger.calls, ledger.retries) == (1, 3)
+
+    def test_retry_after_is_honoured_for_an_outage(self, tmp_path):
+        model, _, sleeps = measured([outage(headers={"Retry-After": "5"}), "ok"], tmp_path)
+        drain(model)
+        assert sleeps == [5.0]
+
+    def test_an_absurd_retry_after_is_clamped(self, tmp_path):
+        model, _, sleeps = measured([outage(headers={"Retry-After": "5000"}), "ok"], tmp_path)
+        drain(model)
+        assert sleeps == [60.0]
+
+    def test_jitter_widens_the_backoff(self, tmp_path):
+        model, _, sleeps = measured([outage(), "ok"], tmp_path)
+        model.jitter = lambda: 0.5
+        drain(model)
+        assert sleeps == [3.0]
+
     def test_other_api_errors_are_not_retried(self, tmp_path):
         model, ledger, sleeps = measured(
-            [genai_errors.APIError(503, {"error": {"message": "down"}})], tmp_path)
+            [genai_errors.APIError(400, {"error": {"message": "bad request"}})], tmp_path)
         with pytest.raises(genai_errors.APIError):
             drain(model)
         assert sleeps == [] and ledger.retries == 0
@@ -102,10 +142,11 @@ class TestMeasuredModel:
 
 class TestScoring:
 
-    def rec(self, rid, route, status="answered", text="", classification=None, calls=3):
+    def rec(self, rid, route, status="answered", text="", classification=None, calls=3,
+            reason="unexplained"):
         return {"id": rid, "route": route, "status": status, "answer_text": text,
-                "classification": classification, "handoff_reason": None
-                if status == "answered" else "unexplained",
+                "classification": classification,
+                "handoff_reason": None if status == "answered" else reason,
                 "model_calls": calls, "seconds_excluding_waits": 1.0, "retries": 0,
                 "input_tokens": 10, "output_tokens": 5}
 
@@ -134,6 +175,22 @@ class TestScoring:
         records = [self.rec("R11", "data", status="handoff")]
         s = ev.score(records, load_eval())
         assert s["unneeded_handoffs"] == [("R11", "unexplained")]
+
+    def test_provider_unavailable_is_listed_and_left_out_of_every_denominator(self):
+        records = [self.rec("R11", "data", status="handoff", reason="provider_unavailable"),
+                   self.rec("R12", None, status="handoff", reason="provider_unavailable"),
+                   self.rec("R21", "human", status="handoff")]
+        s = ev.score(records, load_eval())
+        assert s["unavailable"] == ["R11", "R12"]
+        assert (s["n"], s["routing_right"]) == (1, 1)
+        assert s["unneeded_handoffs"] == [] and s["data"]["handed_off"] == []
+        assert s["model_calls"] == 9            # the calls were still made and still cost
+
+    def test_an_unavailable_investigator_request_is_not_a_handoff_in_the_agreement(self):
+        records = [self.rec("R01", "investigator", status="handoff",
+                            reason="provider_unavailable")]
+        s = ev.score(records, load_eval())
+        assert (s["hinted"]["routed"], s["hinted"]["handed_off"]) == (0, 0)
 
     def test_routing_accuracy_counts_a_missing_route_as_wrong(self):
         records = [self.rec("R25", None, status="handoff"), self.rec("R26", "human",
@@ -231,6 +288,34 @@ class TestRun:
 
     def test_an_unknown_request_id_is_refused_before_any_call(self, paths):
         assert ev.run(args(paths, only="R99"), factory([])) == 2
+
+    def test_a_persistent_outage_is_recorded_as_provider_unavailable_and_the_run_goes_on(
+            self, paths, monkeypatch):
+        monkeypatch.setattr(ev, "BACKOFF_BASE_S", 0.0)
+        script = [route("investigator"), ("get_record_facts", {"entity_id": "ORD4026"}),
+                  verdict("missing_payment"),
+                  route("data")] + [outage()] * 4 + [route("human")]
+        assert ev.run(args(paths), factory(script)) == 0
+        doc = json.loads((paths / "results" / "scripted_t.json").read_text())
+        by_id = {r["id"]: r for r in doc["records"]}
+        assert by_id["R11"]["handoff_reason"] == "provider_unavailable"
+        assert by_id["R11"]["retries"] == 3
+        assert by_id["R02"]["status"] == "answered"
+        assert [r["id"] for r in doc["records"]] == ["R02", "R11", "R21"]
+        assert json.loads((paths / "ledger.json").read_text())["retries"] == 3
+
+    def test_summarise_names_the_unavailable_requests(self, paths, capsys):
+        ev.run(args(paths), factory(SCRIPT))
+        file = paths / "results" / "scripted_t.json"
+        doc = json.loads(file.read_text())
+        doc["records"][1].update(status="handoff", handoff_reason="provider_unavailable",
+                                 answer_text="", route="data")
+        file.write_text(json.dumps(doc))
+        ns = argparse.Namespace(files=[str(file)], price_in=None, price_out=None)
+        assert ev.summarise(ns) == 0
+        out = capsys.readouterr().out
+        assert "provider_unavailable: 1 ['R11']" in out
+        assert "2 request runs scored" in out
 
     def test_a_missing_key_means_no_call_is_made(self, paths, monkeypatch):
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)

@@ -30,6 +30,7 @@ import asyncio
 import hashlib
 import json
 import os
+import random
 import statistics
 import sys
 import time
@@ -63,7 +64,8 @@ from pydantic import ConfigDict  # noqa: E402
 from router_eval_gold import load_eval  # noqa: E402
 
 from multi_agent.app import DEFAULT_TOTAL_BUDGET, RouterApp  # noqa: E402
-from multi_agent.budget import scrub_secrets  # noqa: E402
+from multi_agent.budget import PROVIDER_OUTAGE_CODES, scrub_secrets  # noqa: E402
+from multi_agent.handoff import Reason  # noqa: E402
 from multi_agent.routing import ROUTER_PROMPT  # noqa: E402
 from multi_agent.specialists import DATA_BASE_PROMPT, INVESTIGATOR_BASE_PROMPT  # noqa: E402
 from sql_ask import numbers_in  # noqa: E402
@@ -71,7 +73,9 @@ from sql_ask import numbers_in  # noqa: E402
 RESULTS = ROOT / "results" / "router_eval"
 LEDGER = ROOT / "results" / "router_ledger.json"
 DEFAULT_CAP = 300
+OUTAGE_ATTEMPTS = 4          # tries per call on a 500, 503 or 504, the first included
 KEY_ENV = "GOOGLE_API_KEY"
+UNAVAILABLE = Reason.PROVIDER_UNAVAILABLE.value
 
 
 # --------------------------------------------------------------------------
@@ -84,18 +88,44 @@ class MeasuredModel(BaseLlm):
     inner: BaseLlm
     ledger: Ledger
     sleep: object = asyncio.sleep
+    jitter: object = random.random
     waits: list = []
     retries: int = 0
 
+    def _outage_pause(self, exc: genai_errors.APIError, attempt: int) -> float:
+        """The vendor's Retry-After when it sends one, else exponential backoff
+        with jitter so concurrent runs do not retry in step. Clamped either way."""
+        header = getattr(getattr(exc, "response", None), "headers", {}).get("retry-after", "")
+        try:
+            hinted = float(header)
+        except ValueError:
+            hinted = None
+        if hinted is not None and hinted >= 0:
+            return min(hinted, BACKOFF_MAX_S)
+        delay = BACKOFF_BASE_S * 2 ** (attempt - 1)
+        return min(delay + self.jitter() * delay, BACKOFF_MAX_S)
+
     async def generate_content_async(self, llm_request, stream=False):
         self.ledger.spend()
-        attempt, waited = 0, 0.0
+        attempt, outages, waited = 0, 0, 0.0
         while True:
             try:
                 responses = [r async for r in
                              self.inner.generate_content_async(llm_request, stream=False)]
                 break
             except genai_errors.APIError as exc:
+                if exc.code in PROVIDER_OUTAGE_CODES:
+                    outages += 1
+                    if outages >= OUTAGE_ATTEMPTS:
+                        raise
+                    pause = self._outage_pause(exc, outages)
+                    self.retries += 1
+                    self.ledger.retry()
+                    print(f"    provider unavailable ({exc.code}); waiting {pause:.0f}s "
+                          f"(attempt {outages + 1}/{OUTAGE_ATTEMPTS})", flush=True)
+                    await self.sleep(pause)
+                    waited += pause
+                    continue
                 if exc.code != 429:
                     raise
                 message = str(exc)
@@ -274,7 +304,10 @@ def _pct(num: int, den: int) -> str:
 def score(records: list[dict], items: list[dict]) -> dict:
     """All the numbers the report prints, from the saved records alone."""
     by_id = {i["id"]: i for i in items}
-    recs = [(r, by_id[r["id"]]) for r in records]
+    # A request the provider could not serve says nothing about the router, so
+    # it is listed and left out of every rate. Its calls still count toward cost.
+    unavailable = [r["id"] for r in records if r["handoff_reason"] == UNAVAILABLE]
+    recs = [(r, by_id[r["id"]]) for r in records if r["handoff_reason"] != UNAVAILABLE]
 
     routed_right = [(r, i) for r, i in recs if r["route"] == i["route"]]
     confusion = Counter((i["route"], r["route"] or "none") for r, i in recs)
@@ -310,6 +343,7 @@ def score(records: list[dict], items: list[dict]) -> dict:
     secs = sorted(r["seconds_excluding_waits"] for r in records)
     return {
         "n": len(recs),
+        "unavailable": unavailable,
         "routing_right": len(routed_right),
         "confusion": confusion,
         "boundary": [(i["id"], i["route"], r["route"], r["status"])
@@ -349,7 +383,9 @@ def summarise(args) -> int:
         for ses in m["sessions"]:
             print(f"    - {ses['started_utc']}  git={ses['git_head']}  "
                   f"calls={ses.get('calls', '?')}  {ses.get('status', '?')}")
-    print(f"- {s['n']} request runs scored\n")
+    print(f"- {s['n']} request runs scored")
+    print(f"- provider_unavailable: {len(s['unavailable'])} {s['unavailable']} "
+          f"(left out of every rate below; the service, not the router, failed)\n")
 
     print("## Routing\n")
     print(f"- routed to the correct destination: {_pct(s['routing_right'], s['n'])}")

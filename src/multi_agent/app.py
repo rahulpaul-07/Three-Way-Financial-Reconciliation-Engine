@@ -34,7 +34,9 @@ from .budget import (
     CallBudget,
     CallRecord,
     ModelFailure,
+    ProviderUnavailable,
     StepLimitExceeded,
+    quiet_handled_errors,
 )
 from .handoff import Answer, Handoff, Reason, ToolUse
 from .routing import ROUTER_PROMPT, parse_route
@@ -99,6 +101,7 @@ class RouterApp:
         async with Client(self._server_params()) as client:
             result = await client.call_tool("describe_schema", {})
         self._schema = result.content[0].text
+        quiet_handled_errors()
         self._investigator_tools = self._toolset(INVESTIGATOR_TOOLS)
         self._data_tools = self._toolset(DATA_TOOLS)
         return self
@@ -163,6 +166,8 @@ class RouterApp:
             return Handoff(request, Reason.BUDGET_EXHAUSTED, str(exc), agent, run.tools)
         except StepLimitExceeded as exc:
             return Handoff(request, Reason.STEP_LIMIT, str(exc), agent, run.tools)
+        except ProviderUnavailable as exc:
+            return Handoff(request, Reason.PROVIDER_UNAVAILABLE, str(exc), agent, run.tools)
         except ModelFailure as exc:
             return Handoff(request, Reason.MODEL_ERROR, str(exc), agent, run.tools)
         return None

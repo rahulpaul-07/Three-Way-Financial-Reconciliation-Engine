@@ -6,6 +6,7 @@ wrapper's error mapping and secret scrubbing, the route parser, the note.
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 from pathlib import Path
 
@@ -25,7 +26,9 @@ from multi_agent.budget import (  # noqa: E402
     BudgetExhausted,
     CallBudget,
     ModelFailure,
+    ProviderUnavailable,
     StepLimitExceeded,
+    quiet_handled_errors,
     scrub_secrets,
 )
 from multi_agent.handoff import Handoff, Reason, ToolUse  # noqa: E402
@@ -77,6 +80,19 @@ class TestBudgetedModel:
         with pytest.raises(ModelFailure):
             drain(model)
 
+    @pytest.mark.parametrize("code", [500, 503, 504])
+    def test_a_provider_outage_is_told_apart_from_other_failures(self, code):
+        model, _ = wrapped([genai_errors.APIError(code, {"error": {"message": "busy"}})])
+        with pytest.raises(ProviderUnavailable):
+            drain(model)
+
+    @pytest.mark.parametrize("code", [400, 401, 403, 429])
+    def test_other_api_errors_are_a_plain_model_failure(self, code):
+        model, _ = wrapped([genai_errors.APIError(code, {"error": {"message": "no"}})])
+        with pytest.raises(ModelFailure) as caught:
+            drain(model)
+        assert not isinstance(caught.value, ProviderUnavailable)
+
     def test_a_programming_error_is_not_mapped(self):
         model, _ = wrapped([KeyError("bug")])
         with pytest.raises(KeyError):
@@ -94,6 +110,48 @@ class TestBudgetedModel:
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         assert scrub_secrets("plain") == "plain"
+
+
+class TestQuietHandledErrors:
+
+    def emit(self, caplog, logger_name, exc):
+        logger = logging.getLogger(logger_name)
+        try:
+            raise exc
+        except Exception:
+            logger.error("Node execution failed with exception", exc_info=True)
+
+    @pytest.fixture
+    def adk_logger(self, caplog):
+        # Created after the install, as ADK creates some of its loggers lazily.
+        quiet_handled_errors()
+        name = "google_adk.test_quiet.node"
+        caplog.set_level(logging.INFO)
+        return name
+
+    @pytest.mark.parametrize("exc", [
+        ModelFailure("x"), ProviderUnavailable("x"), BudgetExhausted("x"),
+        StepLimitExceeded("x")])
+    def test_a_traceback_for_an_error_the_wrapper_already_handled_is_dropped(
+            self, caplog, adk_logger, exc):
+        self.emit(caplog, adk_logger, exc)
+        assert caplog.records == []
+
+    def test_a_traceback_for_any_other_error_still_appears(self, caplog, adk_logger):
+        self.emit(caplog, adk_logger, KeyError("bug"))
+        assert len(caplog.records) == 1
+
+    def test_a_message_without_an_exception_still_appears(self, caplog, adk_logger):
+        logging.getLogger(adk_logger).warning("something else")
+        assert [r.getMessage() for r in caplog.records] == ["something else"]
+
+    def test_our_own_loggers_are_untouched(self, caplog, adk_logger):
+        self.emit(caplog, "multi_agent.app", ModelFailure("ours"))
+        assert len(caplog.records) == 1
+
+    def test_installing_twice_does_not_stack_filters(self, adk_logger):
+        quiet_handled_errors()
+        assert len(logging.lastResort.filters) == 1
 
 
 class TestParseRoute:

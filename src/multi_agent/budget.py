@@ -9,6 +9,7 @@ tokens and latency. Nothing about the limits lives in a prompt.
 
 from __future__ import annotations
 
+import logging
 import os
 import time
 from dataclasses import dataclass, field
@@ -33,6 +34,16 @@ class StepLimitExceeded(RunLimit):
 
 class ModelFailure(Exception):
     """The model could not be reached or refused the call (quota, 5xx, timeout)."""
+
+
+class ProviderUnavailable(ModelFailure):
+    """The provider answered 500, 503 or 504: it, not the request, is the problem.
+    Kept apart from other failures so an evaluation can leave these out of a score."""
+
+
+# Gateway-style errors that say the service is overloaded or down, not that the
+# call was wrong. A caller may retry these; a 400 or a 403 will not improve.
+PROVIDER_OUTAGE_CODES = frozenset({500, 503, 504})
 
 
 @dataclass
@@ -92,6 +103,35 @@ class BudgetedModel(BaseLlm):
                     record.output_tokens = usage.candidates_token_count or 0
                 yield response
         except (genai_errors.APIError, httpx.HTTPError, TimeoutError) as exc:
-            raise ModelFailure(scrub_secrets(f"{type(exc).__name__}: {exc}")) from None
+            message = scrub_secrets(f"{type(exc).__name__}: {exc}")
+            if getattr(exc, "code", None) in PROVIDER_OUTAGE_CODES:
+                raise ProviderUnavailable(message) from None
+            raise ModelFailure(message) from None
         finally:
             record.seconds = time.monotonic() - started
+
+
+class _HandledErrorFilter(logging.Filter):
+    """Drops an ADK log record only when it carries an exception this module
+    raises. Records from any other logger, ours included, always pass."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not record.name.startswith("google_adk"):
+            return True
+        exc = record.exc_info[1] if record.exc_info else None
+        return not isinstance(exc, (RunLimit, ModelFailure))
+
+
+_HANDLED = _HandledErrorFilter()
+
+
+def quiet_handled_errors() -> None:
+    """ADK logs a full traceback for any exception that leaves a model call, then
+    the orchestrator turns it into a handoff. The traceback is noise for the
+    errors the wrapper raises on purpose; every other error, and every message
+    without an exception, still logs. The filter sits on the handlers, because a
+    logger's filter does not see records from its child loggers and ADK creates
+    some of those lazily."""
+    for handler in (*logging.getLogger().handlers, logging.lastResort):
+        if handler is not None and _HANDLED not in handler.filters:
+            handler.addFilter(_HANDLED)

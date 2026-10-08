@@ -395,7 +395,10 @@ successful tool call behind it; a specialist hits its step limit; the model
 fails; a figure cannot be traced to a query result; or the call budget runs out.
 The note states the request, which agent tried, the tools it called with their
 arguments, and why it stopped. The no-evidence trigger is stricter than the
-original agent; see D15 in `DECISIONS.md`.
+original agent; see D15 in `DECISIONS.md`. A 500, 503 or 504 from the provider is
+retried up to four attempts with backoff in the evaluation runner; if it persists
+the request is recorded as `provider_unavailable`, listed by ID in the summary
+and left out of every rate, because the service failed, not the router.
 
 ```bash
 pip install -r requirements-multiagent.txt     # google-adk, pinned; Python 3.11+

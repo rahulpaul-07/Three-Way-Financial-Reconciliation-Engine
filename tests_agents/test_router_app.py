@@ -15,6 +15,7 @@ src/multi_agent/app.py.
 from __future__ import annotations
 
 import asyncio
+import logging
 import sys
 from pathlib import Path
 
@@ -30,7 +31,7 @@ from adk_helpers import OUTPUT_TOKENS, PROMPT_TOKENS, ScriptedLlm, route, verdic
 
 from agent import MAX_STEPS as INVESTIGATOR_STEPS  # noqa: E402
 from multi_agent.app import RouterApp  # noqa: E402
-from multi_agent.budget import ModelFailure  # noqa: E402
+from multi_agent.budget import ModelFailure, ProviderUnavailable  # noqa: E402
 from multi_agent.handoff import Reason  # noqa: E402
 from multi_agent.specialists import DATA_TOOLS, INVESTIGATOR_TOOLS  # noqa: E402
 from sql_ask import MAX_STEPS as DATA_STEPS  # noqa: E402
@@ -209,6 +210,14 @@ class TestEscalationBecomesHandoff:
         assert out.handoff.reason is Reason.MODEL_ERROR
         assert out.handoff.agent == "router"
         assert out.route is None
+
+    def test_a_provider_outage_is_its_own_reason_and_its_traceback_is_not_logged(self, caplog):
+        caplog.set_level(logging.INFO)
+        caplog.handler.filters.clear()      # the app must install the filter itself
+        out, _ = handle([route("investigator"), ProviderUnavailable("503 high demand")])
+        assert out.handoff.reason is Reason.PROVIDER_UNAVAILABLE
+        assert out.route == "investigator"
+        assert [r for r in caplog.records if r.exc_info] == []
 
     def test_a_bug_is_not_swallowed_as_a_model_error(self):
         with pytest.raises(RuntimeError, match="a bug"):
