@@ -933,3 +933,60 @@ the prompt stops the model reading its subset-sum hit as the second. Whether
 that wording misled it is not known; I have not tested it. The re-run after
 this fix measures only the filter. The "tool calls" against "rounds" wording
 in the prompt is also still open.
+
+---
+
+### 2026-10-09 - Re-ran the live comparison after the subset-pool fix.
+
+Same model (claude-sonnet-5-5), seed 42, N=2, both engines. Results file:
+`results/engine_compare/anthropic_claude-sonnet-5-5_full-sonnet-fix1.json`,
+recorded at git 294dab2, 192 model calls, about $1.30. The first run was 180
+calls and about $1.27; it recorded git 29f029e and was made with the harness
+still uncommitted.
+
+| | loop, before | loop, after | langgraph, before | langgraph, after |
+|---|---|---|---|---|
+| Agreed with matcher (of 26) | 20 | 21 | 24 | 25 |
+| Cohen's kappa | 0.72 | 0.77 | 0.90 | 0.95 |
+| Ended at step_limit | 3 | 4 | 0 | 1 |
+| Wrong answers given as answered | 3 | 1 | 2 | 0 |
+| Marked resolved while disagreeing with the matcher | 3 | 0 | 2 | 0 |
+
+"Wrong answer given as answered" means the investigation ended in a verdict, not
+an escalation, and the verdict differs from the matcher. Counted from the two
+JSON files: 5 before (BNK000004 once and BNK000006 twice in the loop, BNK000006
+twice in the graph) and 1 after. The one after is the loop on
+GAP_BEFORE_BNK000014, repetition 1, which answered `settlement_not_in_bank`
+where the matcher says `missing_bank_row`. Kappa is the project's
+`cohens_kappa` over the 26 verdicts per engine.
+
+BNK000006 and BNK000004 went from 3 of 8 correct to 8 of 8 (two records, two
+engines, two repetitions). That is the intended effect of the fix and the
+cleanest result in the run: the tool no longer hands the model settled
+payments, so there is nothing for it to mistake for a split.
+
+Escalations on the fee-mismatch orders rose from 3 of 20 to 5 of 20 (5 orders,
+2 engines, 2 repetitions). I checked that none of those 40 investigations, in
+either run, called `find_subset_summing_to`, so the fix cannot have touched
+them. They are probably variance near the 5-round cap, but at N=2 on 13
+records that is not established and I have not looked at the individual
+traces.
+
+Across both runs the loop hit the step limit in 7 of 52 investigations and the
+graph in 1 of 52, although the two cap implementations are identical in logic
+(see the entry above). I have now seen that twice. I do not know the cause, and
+the ORD4034 entry above, which called a single case model variance, does not
+explain a gap this consistent. Not investigated further.
+
+What this does not show: 13 exceptions, N=2, one model. It does not show that
+either engine is better, and it does not show the agent improved in general.
+The README has a "Live evaluation" section with both runs, kept apart from the
+earlier agent figures.
+
+README housekeeping in the same change: the `tests_agents` count is now 127
+(it said 105), in the three places it appeared. Three sentences saying the
+LangGraph engine had never been run against a live model (two in the README, one
+in ARCHITECTURE.md) now say it has, and still say the MCP server and the SQL
+layer have not.
+
+Correction: the loop/graph step-numbering difference for a refused tool is deliberate and pinned by a test (see README), not an inconsistency.
