@@ -89,8 +89,9 @@ async def run_agent(*, name: str, instruction: str, model: BaseLlm, tools: list,
     """Run one agent on the request in a session of its own."""
     agent = LlmAgent(
         name=name, model=model, tools=tools,
-        # A callable is used as is; a string would have {braces} read as
-        # template variables, and the prompts contain JSON.
+        # A callable is used as is. A string would have any bare {word} read
+        # as a template variable (a KeyError), and the data prompt embeds
+        # schema text.
         instruction=lambda _ctx: instruction,
         generate_content_config=config or types.GenerateContentConfig(temperature=0))
     sessions = InMemorySessionService()

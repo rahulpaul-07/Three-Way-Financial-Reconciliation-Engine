@@ -277,7 +277,7 @@ class TestWhatTheAgentsAreBuiltFrom:
         system = model.calls[1]["system"]
         assert "payments reconciliation analyst" in system
         assert "fee_mismatch" in system
-        assert '{"classification"' in system, "JSON braces must survive instruction templating"
+        assert '{"classification"' in system, "the JSON example must reach the model unchanged"
 
     def test_the_data_agent_prompt_carries_the_schema_fetched_over_mcp(self):
         _, model = handle([route("data"), "none"])
