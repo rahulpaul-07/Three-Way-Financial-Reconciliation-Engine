@@ -2,7 +2,7 @@
 
 [![tests](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions/workflows/tests.yml/badge.svg)](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions/workflows/tests.yml)
 [![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://github.com/rahulpaul-07/Three-Way-Financial-Reconciliation-Engine/actions)
-[![tests](https://img.shields.io/badge/tests-179%20passing-brightgreen)](tests/)
+[![tests](https://img.shields.io/badge/tests-179%20%2B%20393%20passing-brightgreen)](tests/)
 [![accuracy](https://img.shields.io/badge/classification-100%25%20vs%20answer%20key-brightgreen)](#results)
 [![detection](https://img.shields.io/badge/unseen%20defects-26%2F26%20caught-brightgreen)](#results)
 [![license](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE)
@@ -268,8 +268,9 @@ exceptions and reached the same classification as the deterministic engine on 12
 of them, across 44 model calls and 8 distinct tools. No tool ordering or
 preference is specified; the distribution below is what it chose. These figures
 are from the loop engine (`agent.py`). The LangGraph engine came later and has
-since been run live on the same batch (see [Live evaluation](#live-evaluation));
-the MCP server has not been run against a live model. A test also holds the graph
+since been run live on the same batch (see [Live evaluation](#live-evaluation)).
+The MCP server has been used live through the multi-agent router, whose agents
+get their tools from it. A test also holds the graph
 to the loop's behaviour on scripted conversations.
 
 The agent contributes investigative strategy. The tools contribute truth. It
@@ -344,7 +345,10 @@ on the wrong key returns real numbers, and the answer passes the check. That is
 why every answer carries the exact SQL that produced it.
 
 The LangGraph engine has now been run against a live model (see
-[Live evaluation](#live-evaluation)); the MCP server and the SQL layer have not.
+[Live evaluation](#live-evaluation)). The MCP server has been used live through
+the multi-agent router: its agents get their tools from it over stdio, and the
+data agent ran `run_sql` and the grounding check live. The standalone
+`sql_ask.py` asker has not been run against a live model.
 The agent loops are tested with a scripted provider that plays a model,
 including a misbehaving one, and the SQL guards are tested directly with hostile
 queries. 393 tests in `tests_agents/`, which also cover the live-evaluation
