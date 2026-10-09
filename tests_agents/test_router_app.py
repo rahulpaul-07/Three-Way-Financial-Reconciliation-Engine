@@ -306,13 +306,14 @@ class TestEscalationBecomesHandoff:
 class TestGroundingOnTheDataPath:
 
     def test_a_figure_that_is_in_no_query_result_is_a_handoff(self):
-        out, _ = handle([route("data"), COUNT_ORDERS, "There are 125 orders."])
+        out, _ = handle([route("data"), COUNT_ORDERS, "There are 125 orders.",
+                         "There are 125 orders."])
         assert out.handoff.reason is Reason.UNGROUNDED_NUMBERS
         assert "125" in out.handoff.detail
         assert out.answer is None
 
     def test_a_figure_with_no_query_at_all_is_a_handoff(self):
-        out, _ = handle([route("data"), "There are 120 orders."])
+        out, _ = handle([route("data"), "There are 120 orders.", "There are 120 orders."])
         assert out.handoff.reason is Reason.UNGROUNDED_NUMBERS
 
     def test_figures_from_the_question_and_from_results_pass(self):
@@ -326,9 +327,92 @@ class TestGroundingOnTheDataPath:
     def test_a_query_the_guard_rejects_is_not_evidence(self):
         out, _ = handle([route("data"),
                          ("run_sql", {"query": "DELETE FROM orders"}),
-                         "Deleted 120 orders."])
+                         "Deleted 120 orders.", "Deleted 120 orders."])
         assert out.handoff.reason is Reason.UNGROUNDED_NUMBERS
         assert [t.ok for t in out.handoff.tools] == [False]
+
+
+class TestRepairRound:
+    """An answer with figures no query returned gets one follow-up naming them."""
+
+    def test_a_figure_no_query_returned_is_repaired_by_one_follow_up(self):
+        out, model = handle([route("data"), COUNT_ORDERS, "There are 125 orders.",
+                             "There are 120 orders."])
+        assert out.status == "answered" and out.repaired
+        assert out.answer.text == "There are 120 orders."
+        assert out.model_calls == 4
+
+    def test_the_follow_up_names_the_exact_figures_and_says_what_to_do(self):
+        _, model = handle([route("data"), COUNT_ORDERS, "125 orders, 77 refunds.",
+                           "There are 120 orders."])
+        follow_up = model.calls[-1]["user"][-1]
+        assert "125, 77" in follow_up
+        assert "appear in no query result" in follow_up
+        assert "Run a query that returns them" in follow_up and "remove them" in follow_up
+
+    def test_the_agent_can_run_a_query_during_the_repair(self):
+        out, _ = handle([route("data"), COUNT_ORDERS, "There are 125 orders.",
+                         COUNT_ORDERS, "There are 120 orders."])
+        assert out.status == "answered" and out.repaired
+        assert out.model_calls == 5
+
+    def test_a_figure_still_ungrounded_after_the_repair_is_a_handoff(self):
+        out, _ = handle([route("data"), COUNT_ORDERS, "There are 125 orders.",
+                         "Sorry, there are 999 orders."])
+        assert out.handoff.reason is Reason.UNGROUNDED_NUMBERS
+        assert "999" in out.handoff.detail and "125" not in out.handoff.detail
+        assert out.repaired and out.answer is None
+
+    def test_there_is_only_one_repair_round(self):
+        out, model = handle([route("data"), COUNT_ORDERS, "125 orders.", "999 orders."])
+        assert out.handoff.reason is Reason.UNGROUNDED_NUMBERS
+        assert len(model.calls) == 4 and model.script == []
+
+    def test_a_grounded_answer_is_not_repaired(self):
+        out, model = handle([route("data"), COUNT_ORDERS, "There are 120 orders."])
+        assert out.status == "answered" and not out.repaired
+        assert len(model.calls) == 3
+
+    def test_a_clean_answer_with_no_figures_is_not_repaired(self):
+        out, _ = handle([route("data"), "The data does not contain that."])
+        assert not out.repaired
+
+    def test_the_repair_is_inside_the_call_budget(self):
+        out, model = handle([route("data"), COUNT_ORDERS, "There are 125 orders."],
+                            total_budget=3)
+        assert len(model.calls) == 3, "the repair must not call past the budget"
+        assert out.handoff.reason is Reason.UNGROUNDED_NUMBERS
+        assert "125" in out.handoff.detail and out.repaired
+
+    def test_the_repair_is_inside_the_agents_step_limit(self):
+        script = [route("data")] + [COUNT_ORDERS] * (DATA_STEPS - 1) + ["There are 125 orders."]
+        out, model = handle(script, total_budget=50)
+        assert len(model.calls) == 1 + DATA_STEPS
+        assert out.handoff.reason is Reason.UNGROUNDED_NUMBERS
+
+    def test_a_provider_failure_during_the_repair_is_reported_as_that(self):
+        out, _ = handle([route("data"), COUNT_ORDERS, "There are 125 orders.",
+                         ProviderUnavailable("overloaded")])
+        assert out.handoff.reason is Reason.PROVIDER_UNAVAILABLE
+        assert out.repaired
+
+    def test_the_investigator_is_never_sent_a_repair_follow_up(self):
+        out, model = handle([route("investigator"), FACTS, verdict("fee_mismatch")],
+                            "why is ORD4088 over?")
+        assert not out.repaired
+        assert not any("appear in no query result" in u
+                       for call in model.calls for u in call["user"])
+
+    def test_an_investigator_answer_with_unlisted_figures_is_not_repaired(self):
+        # Only the data agent is held to the query-result check, so only it is repaired.
+        out, model = handle([route("investigator"), FACTS,
+                             verdict("fee_mismatch", reasoning="over by 98765.43")],
+                            "why is ORD4088 over?")
+        assert not out.repaired and len(model.calls) == 3
+
+    def test_the_follow_up_is_a_user_message_not_an_instruction(self):
+        _, model = handle([route("data"), COUNT_ORDERS, "125 orders.", "120 orders."])
+        assert all("appear in no query result" not in c["system"] for c in model.calls)
 
 
 class TestRequestTextIsData:

@@ -49,6 +49,7 @@ from .specialists import (
     DATA_TOOLS,
     INVESTIGATOR_TOOLS,
     AgentRun,
+    data_follow_up,
     data_prompt,
     investigator_prompt,
     judge_data,
@@ -83,6 +84,12 @@ class Outcome:
     tools: list[ToolUse] = field(default_factory=list)
     router_raw: str = ""
     agent: str | None = None         # the agent running when the request ended
+    specialist: AgentRun | None = None
+
+    @property
+    def repaired(self) -> bool:
+        """The specialist was sent a repair follow-up, whatever came of it."""
+        return self.specialist is not None and self.specialist.repaired
 
     @property
     def model_calls(self) -> int:
@@ -204,10 +211,11 @@ class RouterApp:
 
         specialist = AgentRun(name)
         # Shared, not copied, so a request cut off mid-run still has its trace.
-        outcome.agent, outcome.tools = name, specialist.tools
+        outcome.agent, outcome.tools, outcome.specialist = name, specialist.tools, specialist
         stop = await self._run(name, specialist, request, run_agent(
             name=name, instruction=instruction, tools=[tools], request=request,
-            run=specialist, model=self._wrap(name, budget, limit)))
+            run=specialist, model=self._wrap(name, budget, limit),
+            review=(lambda run: data_follow_up(request, run)) if name == "data" else None))
         if stop:
             return self._finish(outcome, handoff=stop)
         verdict = judge(request, specialist)

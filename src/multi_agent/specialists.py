@@ -11,6 +11,8 @@ the code enforces.
 from __future__ import annotations
 
 import json
+import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -28,7 +30,10 @@ from sql_ask import SYSTEM_PROMPT as DATA_BASE_PROMPT
 from sql_ask import QueryResult, ungrounded_numbers
 from tools import TOOL_SCHEMA
 
+from .budget import RunLimit
 from .handoff import Answer, Handoff, Reason, ToolUse
+
+logger = logging.getLogger(__name__)
 
 # The two closed tool sets. Each specialist is offered exactly these and no
 # others; the MCP server has no write tool, so neither set can contain one.
@@ -70,6 +75,7 @@ class AgentRun:
     tools: list[ToolUse] = field(default_factory=list)
     queries: list[QueryResult] = field(default_factory=list)
     final_text: str = ""
+    repaired: bool = False      # a follow-up was sent after the first answer
 
 
 def _payload(response: Any) -> dict[str, Any]:
@@ -85,8 +91,15 @@ def _succeeded(payload: dict[str, Any]) -> bool:
 
 async def run_agent(*, name: str, instruction: str, model: BaseLlm, tools: list,
                     request: str, run: AgentRun,
-                    config: types.GenerateContentConfig | None = None) -> None:
-    """Run one agent on the request in a session of its own."""
+                    config: types.GenerateContentConfig | None = None,
+                    review: Callable[[AgentRun], str | None] | None = None) -> None:
+    """Run one agent on the request in a session of its own.
+
+    `review` looks at the first answer and may return one follow-up message. It
+    is sent once, in the same session, so the agent keeps its queries and its
+    answer in view. The follow-up uses the same model wrapper, so it is counted
+    against the same call budget and step limit; if either is spent, the
+    follow-up is dropped and the first answer stands."""
     agent = LlmAgent(
         name=name, model=model, tools=tools,
         # A callable is used as is. A string would have any bare {word} read
@@ -100,20 +113,35 @@ async def run_agent(*, name: str, instruction: str, model: BaseLlm, tools: list,
 
     by_id: dict[str, ToolUse] = {}
     queries: dict[str, str] = {}
-    async for event in runner.run_async(
-            user_id="user", session_id="s",
-            new_message=types.Content(role="user", parts=[types.Part(text=request)])):
-        parts = event.content.parts if event.content and event.content.parts else []
-        for part in parts:
-            if part.function_call:
-                call = part.function_call
-                use = ToolUse(agent=name, name=call.name, args=dict(call.args or {}), ok=False)
-                run.tools.append(use)
-                by_id[call.id or f"{call.name}#{len(run.tools)}"] = use
-            elif part.function_response:
-                _record_response(run, by_id, queries, part.function_response)
-        if event.is_final_response():
-            run.final_text = "".join(p.text for p in parts if p.text)
+
+    async def turn(text: str) -> None:
+        async for event in runner.run_async(
+                user_id="user", session_id="s",
+                new_message=types.Content(role="user", parts=[types.Part(text=text)])):
+            parts = event.content.parts if event.content and event.content.parts else []
+            for part in parts:
+                if part.function_call:
+                    call = part.function_call
+                    use = ToolUse(agent=name, name=call.name, args=dict(call.args or {}),
+                                  ok=False)
+                    run.tools.append(use)
+                    by_id[call.id or f"{call.name}#{len(run.tools)}"] = use
+                elif part.function_response:
+                    _record_response(run, by_id, queries, part.function_response)
+            if event.is_final_response():
+                run.final_text = "".join(p.text for p in parts if p.text)
+
+    await turn(request)
+    follow_up = review(run) if review else None
+    if follow_up:
+        run.repaired = True
+        first_answer = run.final_text
+        try:
+            await turn(follow_up)
+        except RunLimit:
+            # No room left to repair. The first answer is judged as it stands.
+            run.final_text = first_answer
+            logger.info("%s: no budget left for the repair round", name)
 
 
 def _record_response(run: AgentRun, by_id: dict[str, ToolUse], queries: dict[str, str],
@@ -168,6 +196,17 @@ def judge_investigator(request: str, run: AgentRun) -> Answer | Handoff:
     return Answer("investigator", result.reasoning, {
         "classification": result.classification, "resolved": result.resolved,
         "reasoning": result.reasoning, "analyst_note": result.analyst_note})
+
+
+def data_follow_up(request: str, run: AgentRun) -> str | None:
+    """The one repair message for a data answer with figures no query returned
+    (a total the agent added up itself, say), or None when it is grounded. It
+    carries only the figures, which are numeric tokens, never the answer's text."""
+    bad = ungrounded_numbers(run.final_text, request, run.queries)
+    if not bad:
+        return None
+    return (f"These figures appear in no query result: {', '.join(bad)}. "
+            "Run a query that returns them or remove them from your answer.")
 
 
 def judge_data(request: str, run: AgentRun) -> Answer | Handoff:
