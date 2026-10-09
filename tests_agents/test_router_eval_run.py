@@ -305,6 +305,16 @@ class TestScoring:
         assert not ev.data_correct(r11, "37, 7, 65, 11")           # strings missing
         assert ev.data_correct(ITEMS["R16"], "6 orders worth INR 14,348.00 in total")
 
+    def test_a_number_written_as_a_word_is_the_same_figure(self):
+        assert ev.data_correct(ITEMS["R15"], "Three credits have no UTR.")
+        assert ev.data_correct(ITEMS["R16"], "Six orders, worth INR 14,348.00 in total")
+        assert not ev.data_correct(ITEMS["R16"], "Seven orders, worth INR 14,348.00")
+
+    def test_the_scorer_counts_word_answers_as_correct(self):
+        records = [self.rec("R15", "data", text="Three credits."),
+                   self.rec("R16", "data", text="Six orders, INR 14348.00 in total.")]
+        assert ev.score(records, load_eval())["data"]["correct"] == ["R15", "R16"]
+
     def test_data_results_are_split_into_correct_wrong_and_handed_off(self):
         records = [self.rec("R15", "data", text="There are 3."),
                    self.rec("R16", "data", text="There are 9."),

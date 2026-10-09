@@ -33,6 +33,7 @@ from sql_ask import (  # noqa: E402
     SQLAsker,
     build_from_dir,
     describe_schema,
+    find_numbers,
     numbers_in,
     run_query,
     ungrounded_numbers,
@@ -258,6 +259,50 @@ class TestNumbers:
         assert numbers_in(text) == [Decimal(x) for x in expected]
 
 
+class TestNumberWords:
+    """Numbers written as words are numbers: the scorer and the grounding check
+    both read them through the same function."""
+
+    @pytest.mark.parametrize("text,expected", [
+        ("Three credits", [3]),
+        ("Six orders", [6]),
+        ("seven refunds", [7]),
+        ("zero exceptions", [0]),
+        ("twenty", [20]),
+        ("NINETEEN items", [19]),
+        ("seventeen and seven", [17, 7]),
+        ("ninety fees", [90]),
+        ("twenty-one orders", [21]),
+        ("Thirty five payments", [35]),
+        ("twenty three", [23]),
+        ("two hundred orders", [200]),
+        ("five thousand", [5000]),
+        ("3 orders and four refunds", [3, 4]),
+        ("INR 1,770.20 across four orders", [Decimal("1770.20"), 4]),
+    ])
+    def test_number_words_are_read(self, text, expected):
+        assert numbers_in(text) == [Decimal(x) for x in expected]
+
+    @pytest.mark.parametrize("text", [
+        "someone", "often", "bone", "none", "weight", "ones", "tone", "stone age",
+        "the one with the gap", "No one paid", "this one", "which one", "one of them",
+        "the first one", "a one-off fee", "every one of them",
+    ])
+    def test_words_that_only_contain_or_resemble_a_number_are_not(self, text):
+        assert numbers_in(text) == []
+
+    def test_one_is_a_number_when_it_counts_something(self):
+        assert numbers_in("Only one order is open") == [Decimal(1)]
+        assert numbers_in("One refund") == [Decimal(1)]
+
+    def test_words_can_be_switched_off(self):
+        assert numbers_in("seven of 9", words=False) == [Decimal(9)]
+
+    def test_find_numbers_keeps_the_text_as_written(self):
+        assert find_numbers("Seven refunds, 12 orders, twenty-one fees") == [
+            ("Seven", Decimal(7)), ("12", Decimal(12)), ("twenty-one", Decimal(21))]
+
+
 class TestGrounding:
 
     def test_a_figure_from_a_result_is_grounded(self):
@@ -298,6 +343,25 @@ class TestGrounding:
     def test_a_failed_query_grounds_nothing(self):
         bad = QueryResult(False, "SELECT", error="no such table: 777")
         assert ungrounded_numbers("It was 777.", "q", [bad]) == ["777"]
+
+    def test_a_number_word_is_checked_like_a_digit(self):
+        r = result({"n": 5})
+        assert ungrounded_numbers("Seven refunds.", "q", [r]) == ["Seven"]
+        assert ungrounded_numbers("Five refunds.", "q", [r]) == []
+
+    def test_a_number_word_in_the_question_is_the_users_own_figure(self):
+        assert ungrounded_numbers("Yes, seven.", "Are there seven refunds?", []) == []
+
+    def test_a_number_word_inside_a_result_cell_grounds_nothing(self):
+        r = result({"note": "seven days late"})
+        assert ungrounded_numbers("Seven refunds.", "q", [r]) == ["Seven"]
+
+    def test_a_pronoun_one_is_not_a_figure(self):
+        assert ungrounded_numbers("It is the one with the gap.", "q", []) == []
+
+    def test_a_spelled_total_that_no_query_returned_is_ungrounded(self):
+        r = result({"n": 3}, {"n": 4})
+        assert ungrounded_numbers("Seven in total.", "q", [r]) == ["Seven"]
 
     def test_no_queries_means_every_figure_is_ungrounded(self):
         assert ungrounded_numbers("Fees were 1380.50", "q", []) == ["1380.50"]

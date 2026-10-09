@@ -358,7 +358,8 @@ def run(args, model_factory=None, probe=None) -> int:
 # --------------------------------------------------------------------------
 
 def data_correct(item: dict, answer: str) -> bool:
-    """Every expected number and string appears in the answer. This checks
+    """Every expected number and string appears in the answer; a number may be
+    written in digits or in words ("Six orders"). This checks
     presence, not exclusivity: an answer that adds a wrong extra figure still
     passes here, though the grounding check has already refused ungrounded ones."""
     expected = item["expected"]

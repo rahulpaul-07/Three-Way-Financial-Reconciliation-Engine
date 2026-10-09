@@ -312,6 +312,12 @@ class TestGroundingOnTheDataPath:
         assert "125" in out.handoff.detail
         assert out.answer is None
 
+    def test_a_figure_written_as_a_word_is_checked_like_a_digit(self):
+        out, _ = handle([route("data"), COUNT_ORDERS, "There are seven orders.",
+                         "There are seven orders."])
+        assert out.handoff.reason is Reason.UNGROUNDED_NUMBERS
+        assert "seven" in out.handoff.detail
+
     def test_a_figure_with_no_query_at_all_is_a_handoff(self):
         out, _ = handle([route("data"), "There are 120 orders.", "There are 120 orders."])
         assert out.handoff.reason is Reason.UNGROUNDED_NUMBERS
