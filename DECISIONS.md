@@ -385,3 +385,18 @@ Behaviours that follow from the choice:
   system, not only of the provider. Retry waits count inside the 5 minutes.
 - The scrubbed error text, cut to 300 characters, is stored on every failed
   call, handoff and retried attempt.
+- Sampling parameters are not sent to Claude. ADK's `AnthropicLlm` forwards
+  `temperature`, `top_p` and `top_k` whenever an agent's config sets them, and
+  our agents set `temperature=0`. The installed `anthropic` 1.12.1 (the newest
+  release) has no such parameters in `messages.create`, so the first live smoke
+  died with a `TypeError` before sending anything. `ClaudeLlm` drops the three
+  fields instead of the agents' config being made provider-specific, and
+  `tests_agents/test_claude_transport.py` runs the real client over a mocked
+  HTTP transport so a mismatch of this kind fails in CI. The pin was not the
+  problem: ADK 2.11.0 declares `anthropic>=0.78`, so it is compatible with this
+  version on paper but not in this call.
+- An unexpected exception inside a request is an `internal_error` handoff, with
+  the scrubbed text and the logged traceback, so one bug does not end a paid run.
+  `RunStopped` (cap, daily limit, retries exhausted) is declared fatal by the
+  runner and still stops it. Unlike `provider_unavailable`, `internal_error`
+  stays in every rate: it is this code's failure.
