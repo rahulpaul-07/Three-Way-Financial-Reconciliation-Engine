@@ -1054,3 +1054,56 @@ prompted it, results from before this change are not comparable on the data
 agent, and any improvement on R11 should be read with that in mind. The result
 record carries `repaired`, and `summarise` reports how many answers were
 repaired against how many were handed off after a repair.
+
+### 2026-10-09 - The first full router run: three scorer and guard findings, and a label overlap.
+
+Run: claude-haiku-5-5, N=2, 60 request runs, git b2dbd10. Routing 60/60, no
+missed or unneeded handoffs, investigator hinted 12/12 and unhinted 5/8, data
+17/20 as scored. Results are in the README.
+
+**The scorer read digits only.** The three data "misses" were correct answers
+with the number spelled out: R15 repetition 1 ("Three credits") and R16 both
+repetitions ("Six orders"). `data_correct` and the grounding check now share one
+reader (`find_numbers` and `numbers_in` in `src/sql_ask.py`) that understands
+digits and number words: zero to nineteen, the tens, compounds such as "twenty
+one", and the scale words hundred, thousand, lakh, crore and million. The stored
+file re-scores to 20/20. The eval set was not edited. The README shows both
+figures; 17/20 is what the run produced and 20/20 is what it would have scored
+with the corrected reader, so the second is a re-scoring, not a new measurement.
+
+**The same gap in the guard.** `ungrounded_numbers` parsed digits only, so a
+total written as a word ("seven refunds") was never checked against the query
+results. It now is. Words in the question ground a figure like digits do. Words
+in a result cell do not (a cell's text is not a count). Audit of the 40 stored
+answers that were answered: 17 number words, 4 of them in data answers (R15
+"Three", R16 "Six" twice, R12 repetition 2 "four"), all four present in that
+answer's query results, so the new guard would have refused none of the stored
+data answers. The rest are in investigator answers, which the guard does not
+cover. Known limits: "one" is also a pronoun, and the heuristic that skips it
+("the one with", "no one", "one of") is approximate; "a dozen", ordinals,
+fractions and "one hundred and five" are not read. Mutation check: 10 mutants of
+the reader and both uses, all killed.
+
+**R08 is a taxonomy overlap, not an agent error.** The agent said
+`missing_bank_row` both times. The matcher label is `settlement_not_in_bank`
+(setl_0010, INR 7,227.29). Evidence that it is one event: the ground truth has a
+single planted row, `GAP_BEFORE_BNK000014` (`missing_bank_row`) targeting
+setl_0010; no bank credit equals 722729 paise and setl_0010 is the only
+settlement of that amount; BNK000013 does not exist; from BNK000012 to BNK000014
+the expected running balance is 40357154 and the actual 41079883, a gap of
+exactly 722729. The matcher reports the same money twice, as the gap row
+(tier 0) and as the settlement (tier 2). The agent's answers noted the gap
+equals the settlement amount and that receipt of funds is not confirmed, which
+is the honest reading. This sits with the `split_settlement` ambiguity (the
+taxonomy allows one label per record where a record can carry two conditions;
+see the entries on set overlap rather than equality). The label was not changed.
+R08 therefore still scores as a miss; crediting the overlap would make the
+unhinted result 7/8, which I did not apply.
+
+**A genuine miss.** Investigator R10 repetition 1 answered `ambiguous_match`
+where the label is `missing_payment`. Nothing excuses it.
+
+**Caveats.** The results table cites b2dbd10, the commit of the run; the scorer
+code is newer than that run, which is why the re-score is stated separately.
+The ledger total (210 calls) includes smoke and preflight calls that are not
+part of the 180 in the run.
