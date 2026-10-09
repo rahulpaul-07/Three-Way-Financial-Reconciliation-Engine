@@ -123,6 +123,27 @@ class TestMeasuredModel:
         assert sleeps == [2.0, 4.0, 8.0]
         assert (ledger.calls, ledger.retries) == (1, 3)
 
+    @pytest.mark.parametrize("exc", [
+        anthropic.APIConnectionError(request=httpx.Request("POST", "https://x")),
+        anthropic.APITimeoutError(httpx.Request("POST", "https://x")),
+        httpx.ConnectError("refused"),
+        httpx.RemoteProtocolError("closed"),
+    ], ids=["claude-connection", "claude-timeout", "gemini-connect", "gemini-protocol"])
+    def test_a_connection_error_is_retried_like_a_503(self, tmp_path, exc):
+        model, ledger, sleeps = measured([exc, exc, "ok"], tmp_path)
+        drain(model)
+        assert sleeps == [2.0, 4.0]
+        assert (ledger.calls, ledger.retries, model.retries) == (1, 2, 2)
+
+    def test_a_connection_error_that_never_clears_stops_after_four_attempts(self, tmp_path):
+        exc = anthropic.APIConnectionError(request=httpx.Request("POST", "https://x"))
+        model, ledger, sleeps = measured([exc] * 10, tmp_path)
+        with pytest.raises(anthropic.APIConnectionError):
+            drain(model)
+        assert len(model.inner.calls) == 4
+        assert sleeps == [2.0, 4.0, 8.0]
+        assert (ledger.calls, ledger.retries) == (1, 3)
+
     def test_retry_after_is_honoured_for_an_outage(self, tmp_path):
         model, _, sleeps = measured([outage(headers={"Retry-After": "5"}), "ok"], tmp_path)
         drain(model)
@@ -377,6 +398,17 @@ class TestRun:
         assert [r["id"] for r in doc["records"]] == ["R02", "R11", "R21"]
         assert json.loads((paths / "ledger.json").read_text())["retries"] == 3
 
+    def test_a_connection_that_never_comes_back_is_provider_unavailable_after_retries(
+            self, paths, monkeypatch):
+        monkeypatch.setattr(ev, "BACKOFF_BASE_S", 0.0)
+        down = anthropic.APIConnectionError(request=httpx.Request("POST", "https://x"))
+        script = [down] * 4 + [route("human"), route("human")]
+        assert ev.run(args(paths, only="R02,R11,R21"), factory(script)) == 0
+        doc = json.loads((paths / "results" / "scripted_t.json").read_text())
+        first = doc["records"][0]
+        assert first["handoff_reason"] == "provider_unavailable"
+        assert first["retries"] == 3
+
     def test_an_auth_failure_is_a_model_error_with_its_text_in_the_record(
             self, paths, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-fake-key-for-test")
@@ -438,6 +470,68 @@ class TestRun:
         assert len(first["handoff_detail"]) <= 300
         assert "sk-fake-key-for-test" not in json.dumps(doc)
         assert first["handoff_agent"] == "investigator"
+
+    def repair_script(self, second_answer):
+        script = list(SCRIPT)
+        script[5:6] = ["card 37, netbanking 7, upi 65, wallet 11. Total 120.", second_answer]
+        return script
+
+    def test_a_repaired_answer_is_recorded_as_repaired(self, paths):
+        script = self.repair_script("card 37, netbanking 7, upi 65, wallet 11.")
+        assert ev.run(args(paths), factory(script)) == 0
+        doc = json.loads((paths / "results" / "scripted_t.json").read_text())
+        by_id = {r["id"]: r for r in doc["records"]}
+        assert by_id["R11"]["repaired"] is True and by_id["R11"]["status"] == "answered"
+        assert by_id["R11"]["model_calls"] == 4
+        assert by_id["R02"]["repaired"] is False and by_id["R21"]["repaired"] is False
+
+    def test_a_repair_that_fails_is_recorded_as_repaired_and_handed_off(self, paths):
+        script = self.repair_script("card 37, netbanking 7, upi 65, wallet 11, total 999.")
+        assert ev.run(args(paths), factory(script)) == 0
+        doc = json.loads((paths / "results" / "scripted_t.json").read_text())
+        record = {r["id"]: r for r in doc["records"]}["R11"]
+        assert record["repaired"] is True
+        assert record["handoff_reason"] == "ungrounded_numbers"
+        assert "999" in record["handoff_detail"]
+
+    def test_repair_calls_are_counted_against_the_ledger(self, paths):
+        script = self.repair_script("card 37, netbanking 7, upi 65, wallet 11.")
+        ev.run(args(paths), factory(script))
+        assert json.loads((paths / "ledger.json").read_text())["calls"] == len(script)
+
+    def summary(self, paths, capsys, edits):
+        ev.run(args(paths), factory(SCRIPT))
+        file = paths / "results" / "scripted_t.json"
+        doc = json.loads(file.read_text())
+        for index, change in edits.items():
+            doc["records"][index].update(change)
+        file.write_text(json.dumps(doc))
+        capsys.readouterr()
+        assert ev.summarise(argparse.Namespace(
+            files=[str(file)], price_in=None, price_out=None)) == 0
+        return capsys.readouterr().out
+
+    def test_summarise_counts_repaired_answers_against_repaired_handoffs(
+            self, paths, capsys):
+        out = self.summary(paths, capsys, {
+            1: {"repaired": True},
+            2: {"repaired": True, "status": "handoff",
+                "handoff_reason": "ungrounded_numbers", "answer_text": ""}})
+        assert ("repair round: 1 answered after a repair ['R11'], "
+                "1 handed off after a repair ['R21']") in out
+
+    def test_summarise_reports_no_repairs_and_reads_older_records(self, paths, capsys):
+        ev.run(args(paths), factory(SCRIPT))
+        file = paths / "results" / "scripted_t.json"
+        doc = json.loads(file.read_text())
+        for record in doc["records"]:
+            del record["repaired"]
+        file.write_text(json.dumps(doc))
+        capsys.readouterr()
+        assert ev.summarise(argparse.Namespace(
+            files=[str(file)], price_in=None, price_out=None)) == 0
+        out = capsys.readouterr().out
+        assert "repair round: 0 answered after a repair [], 0 handed off" in out
 
     def test_a_spend_cap_still_stops_the_run_rather_than_becoming_an_internal_error(
             self, paths):
