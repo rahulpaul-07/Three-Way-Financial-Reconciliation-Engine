@@ -10,14 +10,15 @@ import logging
 import sys
 from pathlib import Path
 
-import anthropic
 import httpx
 import pytest
 
+pytest.importorskip("anthropic")
 pytest.importorskip("google.adk")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+import anthropic  # noqa: E402
 from adk_helpers import HANG, ScriptedLlm  # noqa: E402
 from google.adk.models.llm_request import LlmRequest  # noqa: E402
 from google.genai import errors as genai_errors  # noqa: E402

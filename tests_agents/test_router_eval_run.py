@@ -11,10 +11,10 @@ import json
 import sys
 from pathlib import Path
 
-import anthropic
 import httpx
 import pytest
 
+pytest.importorskip("anthropic")
 pytest.importorskip("google.adk")
 pytest.importorskip("mcp")
 
@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import anthropic  # noqa: E402
 import router_eval as ev  # noqa: E402
 from adk_helpers import HANG, ScriptedLlm, route, verdict  # noqa: E402
 from google.adk.models.llm_request import LlmRequest  # noqa: E402

@@ -699,8 +699,8 @@ Every push runs seven jobs, and a separate workflow publishes the dashboard to G
 | `reconcile` | a clean checkout generates, reconciles, grades and reports end to end, and no unseen defect class passes silently |
 | `web` | the site data builds from a clean checkout, the dashboard type-checks, builds and prerenders, and the engine serves it |
 | `provider-degradation` | the engine reconciles correctly with **no** language model configured |
-| `agent-layers` | the tests in `tests_agents/` that need only `requirements-agents.txt` (MCP server, LangGraph agent, SQL layer, live-evaluation harness, subset-sum filter) pass on Python 3.11 through 3.13; the router tests skip themselves there |
-| `multi-agent` | all 393 tests in `tests_agents/`, router included, pass with `requirements-multiagent.txt` on Python 3.11 through 3.13 |
+| `agent-layers` | the tests in `tests_agents/` that need only `requirements-agents.txt` (MCP server, LangGraph agent, SQL layer, live-evaluation harness, subset-sum filter) pass on Python 3.11 through 3.13 (183 pass); the four router and transport test modules skip themselves there, because ADK and the Anthropic SDK are absent |
+| `multi-agent` | the router tests run too, with `requirements-multiagent.txt` on Python 3.11 through 3.13: 382 pass, and the 11 LangGraph-agent tests skip because that file does not install `langgraph` (the `agent-layers` job runs them) |
 
 The `reconcile` job asserts the exact accuracy figure. A regression that lowers
 it fails the build rather than quietly changing a number in this file.
