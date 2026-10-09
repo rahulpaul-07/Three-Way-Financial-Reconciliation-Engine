@@ -125,12 +125,16 @@ class TestBudgetedModel:
         with pytest.raises(ProviderUnavailable):
             drain(model)
 
-    def test_a_dropped_connection_is_a_plain_model_failure(self):
-        model, _ = wrapped([anthropic.APIConnectionError(
-            request=httpx.Request("POST", "https://x"))])
-        with pytest.raises(ModelFailure) as caught:
+    @pytest.mark.parametrize("exc", [
+        anthropic.APIConnectionError(request=httpx.Request("POST", "https://x")),
+        httpx.ConnectError("refused"),
+        httpx.ReadError("reset"),
+        httpx.RemoteProtocolError("closed"),
+    ])
+    def test_a_dropped_connection_is_a_provider_outage(self, exc):
+        model, _ = wrapped([exc])
+        with pytest.raises(ProviderUnavailable):
             drain(model)
-        assert not isinstance(caught.value, ProviderUnavailable)
 
     def test_a_failed_call_keeps_its_error_text_on_the_call_record(self):
         model, _ = wrapped([claude_error(529)])

@@ -70,7 +70,7 @@ from router_eval_gold import load_eval  # noqa: E402
 from multi_agent.app import DEFAULT_TOTAL_BUDGET, RouterApp  # noqa: E402
 from multi_agent.budget import (  # noqa: E402
     API_STATUS_ERRORS,
-    TIMEOUT_ERRORS,
+    OUTAGE_ERRORS,
     error_status,
     is_outage,
     retry_after_seconds,
@@ -129,7 +129,7 @@ class MeasuredModel(BaseLlm):
                     responses = [r async for r in
                                  self.inner.generate_content_async(llm_request, stream=False)]
                 break
-            except (*API_STATUS_ERRORS, *TIMEOUT_ERRORS) as exc:
+            except (*API_STATUS_ERRORS, *OUTAGE_ERRORS) as exc:
                 self.errors.append(short_error(f"{type(exc).__name__}: {exc}"))
                 if is_outage(exc):
                     outages += 1
@@ -138,7 +138,7 @@ class MeasuredModel(BaseLlm):
                     pause = self._outage_pause(exc, outages)
                     self.retries += 1
                     self.ledger.retry()
-                    print(f"    provider unavailable ({error_status(exc) or 'timeout'}); "
+                    print(f"    provider unavailable ({error_status(exc) or 'no connection'}); "
                           f"waiting {pause:.0f}s (attempt {outages + 1}/{OUTAGE_ATTEMPTS})",
                           flush=True)
                     await self.sleep(pause)
@@ -203,6 +203,7 @@ def _record(item: dict, rep: int, out, seconds: float, waited: float, retries: i
         "answer_text": answer.text if answer else "",
         "classification": (answer.data.get("classification") if answer else None),
         "resolved": (answer.data.get("resolved") if answer else None),
+        "repaired": out.repaired,
         "model_calls": out.model_calls,
         "calls": [asdict(c) for c in out.calls],
         "tools": [asdict(t) for t in out.tools],
@@ -380,6 +381,10 @@ def score(records: list[dict], items: list[dict]) -> dict:
     # Our own bugs stay in every rate (they are the system's failures) but are
     # listed so they cannot hide inside another count.
     internal_errors = [r["id"] for r in records if r["handoff_reason"] == INTERNAL]
+    # Records written before the repair round existed have no such key.
+    repaired = [r for r in records if r.get("repaired")]
+    repaired_answered = [r["id"] for r in repaired if r["status"] == "answered"]
+    repaired_handed_off = [r["id"] for r in repaired if r["status"] != "answered"]
 
     routed_right = [(r, i) for r, i in recs if r["route"] == i["route"]]
     confusion = Counter((i["route"], r["route"] or "none") for r, i in recs)
@@ -417,6 +422,8 @@ def score(records: list[dict], items: list[dict]) -> dict:
         "n": len(recs),
         "unavailable": unavailable,
         "internal_errors": internal_errors,
+        "repaired_answered": repaired_answered,
+        "repaired_handed_off": repaired_handed_off,
         "routing_right": len(routed_right),
         "confusion": confusion,
         "boundary": [(i["id"], i["route"], r["route"], r["status"])
@@ -460,7 +467,10 @@ def summarise(args) -> int:
     print(f"- provider_unavailable: {len(s['unavailable'])} {s['unavailable']} "
           f"(left out of every rate below; the service, not the router, failed)")
     print(f"- internal_error: {len(s['internal_errors'])} {s['internal_errors']} "
-          f"(kept in every rate below; a bug in this code, read the error text)\n")
+          f"(kept in every rate below; a bug in this code, read the error text)")
+    print(f"- repair round: {len(s['repaired_answered'])} answered after a repair "
+          f"{s['repaired_answered']}, {len(s['repaired_handed_off'])} handed off after a "
+          f"repair {s['repaired_handed_off']}\n")
 
     print("## Routing\n")
     print(f"- routed to the correct destination: {_pct(s['routing_right'], s['n'])}")

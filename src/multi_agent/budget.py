@@ -51,6 +51,11 @@ PROVIDER_OUTAGE_CODES = frozenset({500, 503, 504, 529})
 # Both vendors' status-carrying errors, and the timeouts either can produce.
 API_STATUS_ERRORS = (genai_errors.APIError, anthropic.APIStatusError)
 TIMEOUT_ERRORS = (TimeoutError, httpx.TimeoutException, anthropic.APITimeoutError)
+# A connection that was refused, reset or dropped. Anthropic's SDK wraps these in
+# APIConnectionError; Google's client lets httpx's transport errors through.
+CONNECTION_ERRORS = (httpx.TransportError, anthropic.APIConnectionError)
+# Everything that says the service was not reached, and may be retried.
+OUTAGE_ERRORS = (*TIMEOUT_ERRORS, *CONNECTION_ERRORS)
 
 ERROR_TEXT_LIMIT = 300
 
@@ -75,7 +80,7 @@ def retry_after_seconds(exc: BaseException) -> float | None:
 
 
 def is_outage(exc: BaseException) -> bool:
-    return error_status(exc) in PROVIDER_OUTAGE_CODES or isinstance(exc, TIMEOUT_ERRORS)
+    return error_status(exc) in PROVIDER_OUTAGE_CODES or isinstance(exc, OUTAGE_ERRORS)
 
 
 @dataclass
