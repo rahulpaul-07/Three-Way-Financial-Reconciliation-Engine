@@ -48,6 +48,8 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from google.adk.models.base_llm import BaseLlm  # noqa: E402
+from google.adk.models.llm_request import LlmRequest  # noqa: E402
+from google.genai import types  # noqa: E402
 from live_engine_compare import (  # noqa: E402
     BACKOFF_BASE_S,
     BACKOFF_MAX_S,
@@ -89,6 +91,7 @@ CALL_TIMEOUT_S = 60            # one model call, however it hangs
 CLAUDE_CALL_TIMEOUT_S = 60.0   # the SDK's own limit, a second line of defence
 REQUEST_TIMEOUT_S = 300        # one whole request: router, specialist, retries, tools
 UNAVAILABLE = Reason.PROVIDER_UNAVAILABLE.value
+INTERNAL = Reason.INTERNAL_ERROR.value
 
 
 # --------------------------------------------------------------------------
@@ -223,21 +226,41 @@ def key_env(name: str) -> str:
 def _make_model(name: str) -> BaseLlm:
     if is_claude(name):
         from anthropic import AsyncAnthropic
-        from google.adk.models.anthropic_llm import AnthropicLlm
+
+        from multi_agent.claude import ClaudeLlm
         # max_retries=0: the SDK would retry inside a call, out of sight of the
         # ledger and the cap. MeasuredModel owns every retry.
         client = AsyncAnthropic(max_retries=0, timeout=CLAUDE_CALL_TIMEOUT_S)
-        return AnthropicLlm(model=name, client=client)
+        return ClaudeLlm(model=name, client=client)
     from google.adk.models.google_llm import Gemini
     return Gemini(model=name)
+
+
+async def preflight(model: BaseLlm) -> str | None:
+    """One tiny real call, made the way the agents make theirs (same config, no
+    retries). None when it worked, else a one-line reason. Any failure at all
+    means do not start, so the broad catch is deliberate."""
+    request = LlmRequest(
+        model=model.model,
+        contents=[types.Content(role="user", parts=[types.Part(text="Reply with OK.")])],
+        config=types.GenerateContentConfig(temperature=0, max_output_tokens=16))
+    try:
+        async with asyncio.timeout(CALL_TIMEOUT_S):
+            async for _ in model.generate_content_async(request, stream=False):
+                pass
+    except Exception as exc:
+        return short_error(f"{type(exc).__name__}: {exc}")
+    return None
 
 
 async def _run_requests(args, model, items, doc, path, done, session, ledger) -> str:
     measured = MeasuredModel(model=model.model, inner=model, ledger=ledger,
                              call_timeout=CALL_TIMEOUT_S, waits=[], errors=[], retries=0)
     status = "complete"
+    # RunStopped (cap, daily limit, retries exhausted) must end the run; any other
+    # unexpected exception is recorded by the app as an internal_error handoff.
     async with RouterApp(model=measured, data_dir=args.data, total_budget=args.budget,
-                         request_timeout=REQUEST_TIMEOUT_S) as app:
+                         request_timeout=REQUEST_TIMEOUT_S, fatal=(RunStopped,)) as app:
         try:
             for rep in range(args.rep_offset + 1, args.rep_offset + args.reps + 1):
                 for item in items:
@@ -270,7 +293,7 @@ async def _run_requests(args, model, items, doc, path, done, session, ledger) ->
     return status
 
 
-def run(args, model_factory=None) -> int:
+def run(args, model_factory=None, probe=None) -> int:
     items = load_eval()
     if args.only:
         wanted = args.only.split(",")
@@ -285,6 +308,14 @@ def run(args, model_factory=None) -> int:
         print(f"{needed} is not set in this terminal; no call was made", file=sys.stderr)
         return 2
     model = model_factory() if model_factory else _make_model(args.model)
+    # A scripted model has no provider to probe, so tests ask for it explicitly.
+    probe = probe if probe is not None else (None if model_factory else preflight)
+    if probe is not None:
+        problem = asyncio.run(probe(model))
+        if problem:
+            print(f"preflight failed: {problem}; no request was run and nothing was written",
+                  file=sys.stderr)
+            return 3
 
     identity = {"model": model.model, "data": args.data, "reps": args.reps,
                 "rep_offset": args.rep_offset, "budget": args.budget,
@@ -346,6 +377,9 @@ def score(records: list[dict], items: list[dict]) -> dict:
     # it is listed and left out of every rate. Its calls still count toward cost.
     unavailable = [r["id"] for r in records if r["handoff_reason"] == UNAVAILABLE]
     recs = [(r, by_id[r["id"]]) for r in records if r["handoff_reason"] != UNAVAILABLE]
+    # Our own bugs stay in every rate (they are the system's failures) but are
+    # listed so they cannot hide inside another count.
+    internal_errors = [r["id"] for r in records if r["handoff_reason"] == INTERNAL]
 
     routed_right = [(r, i) for r, i in recs if r["route"] == i["route"]]
     confusion = Counter((i["route"], r["route"] or "none") for r, i in recs)
@@ -382,6 +416,7 @@ def score(records: list[dict], items: list[dict]) -> dict:
     return {
         "n": len(recs),
         "unavailable": unavailable,
+        "internal_errors": internal_errors,
         "routing_right": len(routed_right),
         "confusion": confusion,
         "boundary": [(i["id"], i["route"], r["route"], r["status"])
@@ -423,7 +458,9 @@ def summarise(args) -> int:
                   f"calls={ses.get('calls', '?')}  {ses.get('status', '?')}")
     print(f"- {s['n']} request runs scored")
     print(f"- provider_unavailable: {len(s['unavailable'])} {s['unavailable']} "
-          f"(left out of every rate below; the service, not the router, failed)\n")
+          f"(left out of every rate below; the service, not the router, failed)")
+    print(f"- internal_error: {len(s['internal_errors'])} {s['internal_errors']} "
+          f"(kept in every rate below; a bug in this code, read the error text)\n")
 
     print("## Routing\n")
     print(f"- routed to the correct destination: {_pct(s['routing_right'], s['n'])}")
