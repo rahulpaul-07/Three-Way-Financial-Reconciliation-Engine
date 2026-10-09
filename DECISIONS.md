@@ -353,3 +353,35 @@ break. A handoff happens only on `unexplained`, an invalid verdict, no
 evidence, the step limit, a model error, an ungrounded figure, or an exhausted
 budget.
 
+
+
+## D16 - The evaluation runs Claude through ADK's native Anthropic class, not LiteLLM
+
+The first plan was Gemini. Its free tier allows 20 requests per day for
+`gemini-3.8-flash` and `gemini-2.5-flash` returns 404 for new accounts, while
+the full evaluation needs about 220 calls. The agents stay ADK agents; only the
+model changes, to `claude-haiku-5-5`.
+
+ADK 2.11.0 ships `AnthropicLlm` (`google.adk.models.anthropic_llm`). The brief
+suggested LiteLLM. The native class is used instead because LiteLLM would add a
+second translation layer with its own retry loop and its own exception types,
+between the ledger and the provider, on a run where every call is counted and
+priced. With `AnthropicLlm` the errors that arrive are the Anthropic SDK's, so
+the status codes map directly. The cost is that the connector is tied to the
+`anthropic` SDK, which is pinned in `requirements-multiagent.txt`.
+
+Behaviours that follow from the choice:
+
+- The client is built with `max_retries=0`. The SDK would otherwise retry inside
+  a call where the ledger and the cap cannot see it; `MeasuredModel` owns every
+  retry.
+- 429 is a rate limit (Retry-After honoured). 500, 503, 504 and 529, and a call
+  with no answer in 60 seconds, are provider outages: retried up to four
+  attempts, then `provider_unavailable`. 401 and 403 fail at once as
+  `model_error`.
+- A request that runs longer than 5 minutes becomes a handoff with the reason
+  `request_timeout`. It is not excluded from the rates, unlike
+  `provider_unavailable`: a request that is too slow is a property of the
+  system, not only of the provider. Retry waits count inside the 5 minutes.
+- The scrubbed error text, cut to 300 characters, is stored on every failed
+  call, handoff and retried attempt.
