@@ -10,6 +10,7 @@ import logging
 import sys
 from pathlib import Path
 
+import anthropic
 import httpx
 import pytest
 
@@ -17,11 +18,12 @@ pytest.importorskip("google.adk")
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from adk_helpers import ScriptedLlm  # noqa: E402
+from adk_helpers import HANG, ScriptedLlm  # noqa: E402
 from google.adk.models.llm_request import LlmRequest  # noqa: E402
 from google.genai import errors as genai_errors  # noqa: E402
 
 from multi_agent.budget import (  # noqa: E402
+    ERROR_TEXT_LIMIT,
     BudgetedModel,
     BudgetExhausted,
     CallBudget,
@@ -30,9 +32,16 @@ from multi_agent.budget import (  # noqa: E402
     StepLimitExceeded,
     quiet_handled_errors,
     scrub_secrets,
+    short_error,
 )
 from multi_agent.handoff import Handoff, Reason, ToolUse  # noqa: E402
 from multi_agent.routing import parse_route  # noqa: E402
+
+
+def claude_error(status: int, headers: dict | None = None) -> anthropic.APIStatusError:
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    response = httpx.Response(status, headers=headers or {}, request=request)
+    return anthropic.APIStatusError(f"claude said {status}", response=response, body=None)
 
 
 def drain(model: BudgetedModel) -> None:
@@ -93,6 +102,68 @@ class TestBudgetedModel:
             drain(model)
         assert not isinstance(caught.value, ProviderUnavailable)
 
+    @pytest.mark.parametrize("status", [500, 503, 504, 529])
+    def test_a_claude_outage_or_overload_is_a_provider_outage(self, status):
+        model, _ = wrapped([claude_error(status)])
+        with pytest.raises(ProviderUnavailable):
+            drain(model)
+
+    @pytest.mark.parametrize("status", [400, 401, 403, 429])
+    def test_other_claude_errors_are_a_plain_model_failure(self, status):
+        model, _ = wrapped([claude_error(status)])
+        with pytest.raises(ModelFailure) as caught:
+            drain(model)
+        assert not isinstance(caught.value, ProviderUnavailable)
+
+    @pytest.mark.parametrize("exc", [
+        anthropic.APITimeoutError(httpx.Request("POST", "https://x")),
+        TimeoutError("slow"),
+        httpx.ReadTimeout("slow"),
+    ])
+    def test_a_timeout_is_a_provider_outage(self, exc):
+        model, _ = wrapped([exc])
+        with pytest.raises(ProviderUnavailable):
+            drain(model)
+
+    def test_a_dropped_connection_is_a_plain_model_failure(self):
+        model, _ = wrapped([anthropic.APIConnectionError(
+            request=httpx.Request("POST", "https://x"))])
+        with pytest.raises(ModelFailure) as caught:
+            drain(model)
+        assert not isinstance(caught.value, ProviderUnavailable)
+
+    def test_a_failed_call_keeps_its_error_text_on_the_call_record(self):
+        model, _ = wrapped([claude_error(529)])
+        with pytest.raises(ProviderUnavailable):
+            drain(model)
+        assert "529" in model.budget.calls[0].error
+
+    def test_a_successful_call_has_no_error_text(self):
+        model, _ = wrapped(["fine"])
+        drain(model)
+        assert model.budget.calls[0].error == ""
+
+    def test_the_stored_error_text_is_truncated_and_scrubbed(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-fake-key-for-test")
+        model, _ = wrapped([httpx.ConnectError("sk-fake-key-for-test " + "x" * 2000)])
+        with pytest.raises(ModelFailure) as caught:
+            drain(model)
+        stored = model.budget.calls[0].error
+        assert len(stored) <= ERROR_TEXT_LIMIT
+        assert "sk-fake-key-for-test" not in stored + str(caught.value)
+        assert len(str(caught.value)) <= ERROR_TEXT_LIMIT + len("ConnectError: ")
+
+    def test_a_hung_call_that_is_cancelled_still_records_its_seconds(self):
+        model, _ = wrapped([HANG])
+
+        async def go():
+            with pytest.raises(TimeoutError):
+                async with asyncio.timeout(0.05):
+                    async for _ in model.generate_content_async(LlmRequest()):
+                        pass
+        asyncio.run(go())
+        assert model.budget.calls[0].seconds >= 0.04
+
     def test_a_programming_error_is_not_mapped(self):
         model, _ = wrapped([KeyError("bug")])
         with pytest.raises(KeyError):
@@ -106,9 +177,20 @@ class TestBudgetedModel:
         assert "fake-key-value-for-test" not in str(caught.value)
         assert "[redacted]" in str(caught.value)
 
+    def test_the_anthropic_key_is_scrubbed_too(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-fake-key-for-test")
+        assert scrub_secrets("x-api-key: sk-fake-key-for-test") == "x-api-key: [redacted]"
+
+    def test_short_error_scrubs_before_it_truncates(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "k" * 40)
+        text = "a" * (ERROR_TEXT_LIMIT - 10) + "k" * 40
+        assert "kkk" not in short_error(text)      # the key is gone even where it was cut
+        assert len(short_error("b" * 5000)) == ERROR_TEXT_LIMIT
+
     def test_scrub_leaves_text_alone_when_no_key_is_set(self, monkeypatch):
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         assert scrub_secrets("plain") == "plain"
 
 

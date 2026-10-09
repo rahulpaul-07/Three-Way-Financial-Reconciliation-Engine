@@ -1,6 +1,6 @@
 """
 Run the multi-agent router on the 30-request evaluation set against a live
-Gemini model, record everything, and score it.
+model (Claude or Gemini, chosen by the model name), record everything, and score it.
 
     python scripts/router_eval.py models
     python scripts/router_eval.py run --model MODEL --label smoke --only R02,R11,R21 --cap 20
@@ -16,8 +16,11 @@ Measurement rules, the same as scripts/live_engine_compare.py:
   * A call is never dropped. A 429 is retried after the vendor's hint (or a
     backoff); a daily limit, an unreasonably long wait or too many retries stops
     the run, saves progress, and the same command resumes from the saved file.
-  * The key is read from GOOGLE_API_KEY by the Gemini client and is never
-    written to a result.
+  * The key is read from ANTHROPIC_API_KEY (claude-* models) or GOOGLE_API_KEY
+    by the vendor's client and is never written to a result.
+  * A model call is cut off after CALL_TIMEOUT_S and retried like an outage; a
+    whole request after REQUEST_TIMEOUT_S, recorded as request_timeout.
+  * Every failed attempt keeps its scrubbed, truncated error text in the record.
   * The router, prompts and tools are used as they are. A result file records a
     hash of every prompt, and a resume against changed prompts is refused, so
     numbers measured before and after prompt tuning cannot be mixed.
@@ -45,7 +48,6 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from google.adk.models.base_llm import BaseLlm  # noqa: E402
-from google.genai import errors as genai_errors  # noqa: E402
 from live_engine_compare import (  # noqa: E402
     BACKOFF_BASE_S,
     BACKOFF_MAX_S,
@@ -64,7 +66,14 @@ from pydantic import ConfigDict  # noqa: E402
 from router_eval_gold import load_eval  # noqa: E402
 
 from multi_agent.app import DEFAULT_TOTAL_BUDGET, RouterApp  # noqa: E402
-from multi_agent.budget import PROVIDER_OUTAGE_CODES, scrub_secrets  # noqa: E402
+from multi_agent.budget import (  # noqa: E402
+    API_STATUS_ERRORS,
+    TIMEOUT_ERRORS,
+    error_status,
+    is_outage,
+    retry_after_seconds,
+    short_error,
+)
 from multi_agent.handoff import Reason  # noqa: E402
 from multi_agent.routing import ROUTER_PROMPT  # noqa: E402
 from multi_agent.specialists import DATA_BASE_PROMPT, INVESTIGATOR_BASE_PROMPT  # noqa: E402
@@ -74,7 +83,11 @@ RESULTS = ROOT / "results" / "router_eval"
 LEDGER = ROOT / "results" / "router_ledger.json"
 DEFAULT_CAP = 300
 OUTAGE_ATTEMPTS = 4          # tries per call on a 500, 503 or 504, the first included
-KEY_ENV = "GOOGLE_API_KEY"
+GEMINI_KEY_ENV = "GOOGLE_API_KEY"
+CLAUDE_KEY_ENV = "ANTHROPIC_API_KEY"
+CALL_TIMEOUT_S = 60            # one model call, however it hangs
+CLAUDE_CALL_TIMEOUT_S = 60.0   # the SDK's own limit, a second line of defence
+REQUEST_TIMEOUT_S = 300        # one whole request: router, specialist, retries, tools
 UNAVAILABLE = Reason.PROVIDER_UNAVAILABLE.value
 
 
@@ -89,18 +102,16 @@ class MeasuredModel(BaseLlm):
     ledger: Ledger
     sleep: object = asyncio.sleep
     jitter: object = random.random
+    call_timeout: float = 60.0
     waits: list = []
+    errors: list = []          # one scrubbed, truncated message per failed attempt
     retries: int = 0
 
-    def _outage_pause(self, exc: genai_errors.APIError, attempt: int) -> float:
+    def _outage_pause(self, exc: BaseException, attempt: int) -> float:
         """The vendor's Retry-After when it sends one, else exponential backoff
         with jitter so concurrent runs do not retry in step. Clamped either way."""
-        header = getattr(getattr(exc, "response", None), "headers", {}).get("retry-after", "")
-        try:
-            hinted = float(header)
-        except ValueError:
-            hinted = None
-        if hinted is not None and hinted >= 0:
+        hinted = retry_after_seconds(exc)
+        if hinted is not None:
             return min(hinted, BACKOFF_MAX_S)
         delay = BACKOFF_BASE_S * 2 ** (attempt - 1)
         return min(delay + self.jitter() * delay, BACKOFF_MAX_S)
@@ -110,31 +121,37 @@ class MeasuredModel(BaseLlm):
         attempt, outages, waited = 0, 0, 0.0
         while True:
             try:
-                responses = [r async for r in
-                             self.inner.generate_content_async(llm_request, stream=False)]
+                # A call that never returns is a failed attempt, not a hung run.
+                async with asyncio.timeout(self.call_timeout):
+                    responses = [r async for r in
+                                 self.inner.generate_content_async(llm_request, stream=False)]
                 break
-            except genai_errors.APIError as exc:
-                if exc.code in PROVIDER_OUTAGE_CODES:
+            except (*API_STATUS_ERRORS, *TIMEOUT_ERRORS) as exc:
+                self.errors.append(short_error(f"{type(exc).__name__}: {exc}"))
+                if is_outage(exc):
                     outages += 1
                     if outages >= OUTAGE_ATTEMPTS:
                         raise
                     pause = self._outage_pause(exc, outages)
                     self.retries += 1
                     self.ledger.retry()
-                    print(f"    provider unavailable ({exc.code}); waiting {pause:.0f}s "
-                          f"(attempt {outages + 1}/{OUTAGE_ATTEMPTS})", flush=True)
+                    print(f"    provider unavailable ({error_status(exc) or 'timeout'}); "
+                          f"waiting {pause:.0f}s (attempt {outages + 1}/{OUTAGE_ATTEMPTS})",
+                          flush=True)
                     await self.sleep(pause)
                     waited += pause
                     continue
-                if exc.code != 429:
+                if error_status(exc) != 429:
                     raise
                 message = str(exc)
                 self.retries += 1
                 self.ledger.retry()
                 # Gemini's free-tier daily quota is reported by metric name.
                 if "PerDay" in message:
-                    raise DailyLimit(f"daily limit: {scrub_secrets(message)[:200]}") from None
-                hint = parse_retry_hint(message)
+                    raise DailyLimit(f"daily limit: {short_error(message)}") from None
+                hint = retry_after_seconds(exc)
+                if hint is None:
+                    hint = parse_retry_hint(message)
                 wait = hint if hint is not None else min(
                     BACKOFF_BASE_S * 2 ** attempt, BACKOFF_MAX_S)
                 if wait > MAX_WAIT_S:
@@ -169,13 +186,16 @@ def list_models(client) -> list[str]:
 # Run
 # --------------------------------------------------------------------------
 
-def _record(item: dict, rep: int, out, seconds: float, waited: float, retries: int) -> dict:
+def _record(item: dict, rep: int, out, seconds: float, waited: float, retries: int,
+            attempt_errors: list[str]) -> dict:
     handoff, answer = out.handoff, out.answer
     return {
         "id": item["id"], "rep": rep, "expected_route": item["route"],
         "route": out.route, "status": out.status,
         "handoff_reason": handoff.reason.value if handoff else None,
         "handoff_agent": handoff.agent if handoff else None,
+        "handoff_detail": short_error(handoff.detail) if handoff else "",
+        "attempt_errors": attempt_errors,
         "answer_agent": answer.agent if answer else None,
         "answer_text": answer.text if answer else "",
         "classification": (answer.data.get("classification") if answer else None),
@@ -192,23 +212,39 @@ def _record(item: dict, rep: int, out, seconds: float, waited: float, retries: i
     }
 
 
+def is_claude(name: str) -> bool:
+    return name.startswith("claude-")
+
+
+def key_env(name: str) -> str:
+    return CLAUDE_KEY_ENV if is_claude(name) else GEMINI_KEY_ENV
+
+
 def _make_model(name: str) -> BaseLlm:
+    if is_claude(name):
+        from anthropic import AsyncAnthropic
+        from google.adk.models.anthropic_llm import AnthropicLlm
+        # max_retries=0: the SDK would retry inside a call, out of sight of the
+        # ledger and the cap. MeasuredModel owns every retry.
+        client = AsyncAnthropic(max_retries=0, timeout=CLAUDE_CALL_TIMEOUT_S)
+        return AnthropicLlm(model=name, client=client)
     from google.adk.models.google_llm import Gemini
     return Gemini(model=name)
 
 
 async def _run_requests(args, model, items, doc, path, done, session, ledger) -> str:
     measured = MeasuredModel(model=model.model, inner=model, ledger=ledger,
-                             waits=[], retries=0)
+                             call_timeout=CALL_TIMEOUT_S, waits=[], errors=[], retries=0)
     status = "complete"
-    async with RouterApp(model=measured, data_dir=args.data,
-                         total_budget=args.budget) as app:
+    async with RouterApp(model=measured, data_dir=args.data, total_budget=args.budget,
+                         request_timeout=REQUEST_TIMEOUT_S) as app:
         try:
             for rep in range(args.rep_offset + 1, args.rep_offset + args.reps + 1):
                 for item in items:
                     if (rep, item["id"]) in done:
                         continue
                     waits_before, retries_before = len(measured.waits), measured.retries
+                    errors_before = len(measured.errors)
                     t0 = time.perf_counter()
                     try:
                         out = await app.handle(item["request"])
@@ -218,7 +254,8 @@ async def _run_requests(args, model, items, doc, path, done, session, ledger) ->
                     seconds = time.perf_counter() - t0
                     waited = sum(measured.waits[waits_before:])
                     rec = _record(item, rep, out, seconds, waited,
-                                  measured.retries - retries_before)
+                                  measured.retries - retries_before,
+                                  measured.errors[errors_before:])
                     doc["records"].append(rec)
                     _atomic_write(path, doc)
                     shown = out.handoff.reason.value if out.handoff else "answered"
@@ -243,8 +280,9 @@ def run(args, model_factory=None) -> int:
             return 2
         items = [i for i in items if i["id"] in wanted]
 
-    if model_factory is None and not os.environ.get(KEY_ENV):
-        print(f"{KEY_ENV} is not set in this terminal; no call was made", file=sys.stderr)
+    needed = key_env(args.model)
+    if model_factory is None and not os.environ.get(needed):
+        print(f"{needed} is not set in this terminal; no call was made", file=sys.stderr)
         return 2
     model = model_factory() if model_factory else _make_model(args.model)
 
@@ -433,8 +471,8 @@ def summarise(args) -> int:
 # --------------------------------------------------------------------------
 
 def models(_args) -> int:
-    if not os.environ.get(KEY_ENV):
-        print(f"{KEY_ENV} is not set in this terminal", file=sys.stderr)
+    if not os.environ.get(GEMINI_KEY_ENV):
+        print(f"{GEMINI_KEY_ENV} is not set in this terminal", file=sys.stderr)
         return 2
     from google.genai import Client
     for name in list_models(Client()):

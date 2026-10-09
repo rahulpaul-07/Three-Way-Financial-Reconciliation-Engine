@@ -16,6 +16,8 @@ and judges the result. The rules it enforces:
 
 from __future__ import annotations
 
+import asyncio
+import logging
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -51,11 +53,20 @@ from .specialists import (
     run_agent,
 )
 
+logger = logging.getLogger(__name__)
+
 MCP_SERVER = Path(__file__).resolve().parents[1] / "mcp_server.py"
 MCP_TIMEOUT_SECONDS = 30
+# One request, router and specialist together, retries and tool calls included.
+# Nothing a model or a tool does can hold a request longer than this.
+REQUEST_TIMEOUT_S = 300
 
 # The router, plus the longest specialist (the data agent).
 DEFAULT_TOTAL_BUDGET = 1 + DATA_STEPS
+
+
+class McpUnavailable(RuntimeError):
+    """The MCP server did not start and answer within the timeout."""
 
 
 @dataclass
@@ -68,6 +79,7 @@ class Outcome:
     calls: list[CallRecord] = field(default_factory=list)
     tools: list[ToolUse] = field(default_factory=list)
     router_raw: str = ""
+    agent: str | None = None         # the agent running when the request ended
 
     @property
     def model_calls(self) -> int:
@@ -76,8 +88,10 @@ class Outcome:
 
 class RouterApp:
     def __init__(self, model: BaseLlm, data_dir: str | Path = "data",
-                 total_budget: int = DEFAULT_TOTAL_BUDGET):
+                 total_budget: int = DEFAULT_TOTAL_BUDGET,
+                 request_timeout: float = REQUEST_TIMEOUT_S):
         self._model = model
+        self._request_timeout = request_timeout
         self._data_dir = str(data_dir)
         self._total_budget = total_budget
         self._schema = ""
@@ -98,8 +112,13 @@ class RouterApp:
     async def __aenter__(self) -> RouterApp:
         # The schema goes into the data agent's prompt. It is fetched once, over
         # MCP, with no model call.
-        async with Client(self._server_params()) as client:
-            result = await client.call_tool("describe_schema", {})
+        try:
+            async with asyncio.timeout(MCP_TIMEOUT_SECONDS):
+                async with Client(self._server_params()) as client:
+                    result = await client.call_tool("describe_schema", {})
+        except TimeoutError:
+            raise McpUnavailable(
+                f"the MCP server gave no answer within {MCP_TIMEOUT_SECONDS}s") from None
         self._schema = result.content[0].text
         quiet_handled_errors()
         self._investigator_tools = self._toolset(INVESTIGATOR_TOOLS)
@@ -108,7 +127,12 @@ class RouterApp:
 
     async def __aexit__(self, *exc_info) -> None:
         for toolset in self._toolsets:
-            await toolset.close()
+            try:
+                async with asyncio.timeout(MCP_TIMEOUT_SECONDS):
+                    await toolset.close()
+            except TimeoutError:
+                logger.warning("an MCP toolset did not close within %ss; moving on",
+                               MCP_TIMEOUT_SECONDS)
 
     def _wrap(self, name: str, budget: CallBudget, max_calls: int) -> BudgetedModel:
         return BudgetedModel(model=self._model.model, inner=self._model, budget=budget,
@@ -117,8 +141,24 @@ class RouterApp:
     async def handle(self, request: str) -> Outcome:
         budget = CallBudget(self._total_budget)
         outcome = Outcome(request=request, calls=budget.calls)
+        limit = asyncio.timeout(self._request_timeout)
+        try:
+            async with limit:
+                return await self._handle(request, budget, outcome)
+        except TimeoutError:
+            # Only this request's own limit is a request timeout. A TimeoutError
+            # from a model call never gets here: the wrapper makes it a
+            # ProviderUnavailable first.
+            if not limit.expired():
+                raise
+            handoff = Handoff(request, Reason.REQUEST_TIMEOUT,
+                              f"no result within {self._request_timeout:g}s",
+                              outcome.agent, outcome.tools)
+            return self._finish(outcome, handoff=handoff)
 
+    async def _handle(self, request: str, budget: CallBudget, outcome: Outcome) -> Outcome:
         router = AgentRun("router")
+        outcome.agent = "router"
         stop = await self._run("router", router, request, run_agent(
             name="router", instruction=ROUTER_PROMPT, tools=[], request=request, run=router,
             model=self._wrap("router", budget, 1),
@@ -145,10 +185,11 @@ class RouterApp:
             judge = judge_data
 
         specialist = AgentRun(name)
+        # Shared, not copied, so a request cut off mid-run still has its trace.
+        outcome.agent, outcome.tools = name, specialist.tools
         stop = await self._run(name, specialist, request, run_agent(
             name=name, instruction=instruction, tools=[tools], request=request,
             run=specialist, model=self._wrap(name, budget, limit)))
-        outcome.tools = specialist.tools
         if stop:
             return self._finish(outcome, handoff=stop)
         verdict = judge(request, specialist)

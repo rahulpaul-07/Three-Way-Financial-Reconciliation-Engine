@@ -8,3 +8,7 @@ mcp==2.2.0
 # 2.11.0 was the newest release on 2026-10-09; ADK 2.x changes its API between
 # minor versions, so this is an exact pin.
 google-adk==2.11.0
+# Claude runs through ADK's own AnthropicLlm class (google.adk.models.anthropic_llm),
+# which needs this SDK; that replaces LiteLLM, a second proxy layer with its own
+# retry and error mapping. Pinned to the version tested against.
+anthropic==1.12.1

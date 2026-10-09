@@ -14,6 +14,7 @@ import os
 import time
 from dataclasses import dataclass, field
 
+import anthropic
 import httpx
 from google.adk.models.base_llm import BaseLlm
 from google.genai import errors as genai_errors
@@ -37,13 +38,44 @@ class ModelFailure(Exception):
 
 
 class ProviderUnavailable(ModelFailure):
-    """The provider answered 500, 503 or 504: it, not the request, is the problem.
-    Kept apart from other failures so an evaluation can leave these out of a score."""
+    """The provider answered 500, 503, 504 or 529, or the call timed out: it, not
+    the request, is the problem. Kept apart from other failures so an evaluation
+    can leave these out of a score."""
 
 
-# Gateway-style errors that say the service is overloaded or down, not that the
-# call was wrong. A caller may retry these; a 400 or a 403 will not improve.
-PROVIDER_OUTAGE_CODES = frozenset({500, 503, 504})
+# Errors that say the service is overloaded or down, not that the call was
+# wrong (529 is Anthropic's "overloaded"). A caller may retry these; a 400,
+# 401 or 403 will not improve.
+PROVIDER_OUTAGE_CODES = frozenset({500, 503, 504, 529})
+
+# Both vendors' status-carrying errors, and the timeouts either can produce.
+API_STATUS_ERRORS = (genai_errors.APIError, anthropic.APIStatusError)
+TIMEOUT_ERRORS = (TimeoutError, httpx.TimeoutException, anthropic.APITimeoutError)
+
+ERROR_TEXT_LIMIT = 300
+
+
+def error_status(exc: BaseException) -> int | None:
+    """The HTTP status of a vendor error: `code` on Google's, `status_code` on Anthropic's."""
+    for attr in ("code", "status_code"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, int):
+            return value
+    return None
+
+
+def retry_after_seconds(exc: BaseException) -> float | None:
+    """The vendor's Retry-After header, in seconds, when it sent a usable one."""
+    headers = getattr(getattr(exc, "response", None), "headers", None)
+    try:
+        value = float(headers.get("retry-after", "")) if headers is not None else None
+    except (TypeError, ValueError):
+        return None
+    return value if value is not None and value >= 0 else None
+
+
+def is_outage(exc: BaseException) -> bool:
+    return error_status(exc) in PROVIDER_OUTAGE_CODES or isinstance(exc, TIMEOUT_ERRORS)
 
 
 @dataclass
@@ -52,6 +84,7 @@ class CallRecord:
     input_tokens: int = 0
     output_tokens: int = 0
     seconds: float = 0.0
+    error: str = ""                 # scrubbed and truncated; empty when the call succeeded
 
 
 @dataclass
@@ -71,11 +104,17 @@ class CallBudget:
 
 def scrub_secrets(text: str) -> str:
     """Remove the API key from an error message before it can reach a log or a note."""
-    for name in ("GOOGLE_API_KEY", "GEMINI_API_KEY"):
+    for name in ("GOOGLE_API_KEY", "GEMINI_API_KEY", "ANTHROPIC_API_KEY"):
         key = os.environ.get(name)
         if key:
             text = text.replace(key, "[redacted]")
     return text
+
+
+def short_error(text: str) -> str:
+    """An error message that is safe to store: scrubbed first, so a key cut by the
+    truncation cannot survive as a fragment, then cut to a fixed length."""
+    return scrub_secrets(text)[:ERROR_TEXT_LIMIT]
 
 
 class BudgetedModel(BaseLlm):
@@ -102,11 +141,11 @@ class BudgetedModel(BaseLlm):
                     record.input_tokens = usage.prompt_token_count or 0
                     record.output_tokens = usage.candidates_token_count or 0
                 yield response
-        except (genai_errors.APIError, httpx.HTTPError, TimeoutError) as exc:
-            message = scrub_secrets(f"{type(exc).__name__}: {exc}")
-            if getattr(exc, "code", None) in PROVIDER_OUTAGE_CODES:
-                raise ProviderUnavailable(message) from None
-            raise ModelFailure(message) from None
+        except (*API_STATUS_ERRORS, anthropic.APIError, httpx.HTTPError, TimeoutError) as exc:
+            record.error = short_error(f"{type(exc).__name__}: {exc}")
+            if is_outage(exc):
+                raise ProviderUnavailable(record.error) from None
+            raise ModelFailure(record.error) from None
         finally:
             record.seconds = time.monotonic() - started
 

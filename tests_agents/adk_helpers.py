@@ -8,6 +8,7 @@ whichever specialist the router chose. Each script entry is one model turn:
     ("tool_name", {args})       one tool call
     [("a", {}), ("b", {})]      several tool calls in one turn
     an Exception instance       the call fails with it
+    HANG                        the call never returns
 
 The model records what each call was shown (the tools on offer, the system
 instruction, the user text) so a test can assert on what the agent could see,
@@ -16,6 +17,7 @@ not just on what it did. Nothing here touches the network.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from google.adk.models.base_llm import BaseLlm
@@ -23,6 +25,7 @@ from google.adk.models.llm_response import LlmResponse
 from google.genai import types
 from pydantic import Field
 
+HANG = object()
 PROMPT_TOKENS = 11
 OUTPUT_TOKENS = 7
 
@@ -44,6 +47,8 @@ class ScriptedLlm(BaseLlm):
         step = self.script.pop(0)
         if isinstance(step, Exception):
             raise step
+        if step is HANG:
+            await asyncio.Event().wait()
         yield LlmResponse(
             content=types.Content(role="model", parts=_parts(step)),
             usage_metadata=types.GenerateContentResponseUsageMetadata(

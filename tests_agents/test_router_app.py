@@ -27,10 +27,18 @@ pytest.importorskip("mcp")
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from adk_helpers import OUTPUT_TOKENS, PROMPT_TOKENS, ScriptedLlm, route, verdict  # noqa: E402
+from adk_helpers import (  # noqa: E402
+    HANG,
+    OUTPUT_TOKENS,
+    PROMPT_TOKENS,
+    ScriptedLlm,
+    route,
+    verdict,
+)
 
 from agent import MAX_STEPS as INVESTIGATOR_STEPS  # noqa: E402
-from multi_agent.app import RouterApp  # noqa: E402
+from multi_agent import app as app_module  # noqa: E402
+from multi_agent.app import McpUnavailable, RouterApp  # noqa: E402
 from multi_agent.budget import ModelFailure, ProviderUnavailable  # noqa: E402
 from multi_agent.handoff import Reason  # noqa: E402
 from multi_agent.specialists import DATA_TOOLS, INVESTIGATOR_TOOLS  # noqa: E402
@@ -219,6 +227,39 @@ class TestEscalationBecomesHandoff:
         assert out.route == "investigator"
         assert [r for r in caplog.records if r.exc_info] == []
 
+    def test_a_hung_specialist_becomes_a_request_timeout_handoff_with_its_trace(self):
+        out, _ = handle([route("investigator"), FACTS, HANG], request_timeout=6)
+        assert out.handoff.reason is Reason.REQUEST_TIMEOUT
+        assert out.handoff.agent == "investigator"
+        assert [t.name for t in out.handoff.tools] == ["get_record_facts"]
+        assert out.route == "investigator"
+        assert out.model_calls == 3
+
+    def test_a_hung_router_becomes_a_request_timeout_handoff(self):
+        out, _ = handle([HANG], request_timeout=0.5)
+        assert out.handoff.reason is Reason.REQUEST_TIMEOUT
+        assert out.handoff.agent == "router"
+
+    def test_the_request_limit_is_per_request_not_per_app(self):
+        async def go():
+            async with RouterApp(model=ScriptedLlm(script=[route("human"), HANG, route("human")]),
+                                 data_dir=ROOT / "data", request_timeout=0.5) as app:
+                return [await app.handle(r) for r in ("a", "b", "c")]
+        first, second, third = asyncio.run(go())
+        assert [first.handoff.reason, second.handoff.reason, third.handoff.reason] == [
+            Reason.ROUTED_TO_HUMAN, Reason.REQUEST_TIMEOUT, Reason.ROUTED_TO_HUMAN]
+
+    def test_a_timeout_that_is_not_the_request_limit_is_not_mislabelled(self, monkeypatch):
+        async def stray(*_args):
+            raise TimeoutError("some other timeout")
+        monkeypatch.setattr(RouterApp, "_handle", stray)
+
+        async def go():
+            async with RouterApp(model=ScriptedLlm(), data_dir=ROOT / "data") as app:
+                await app.handle("anything")
+        with pytest.raises(TimeoutError, match="some other timeout"):
+            asyncio.run(go())
+
     def test_a_bug_is_not_swallowed_as_a_model_error(self):
         with pytest.raises(RuntimeError, match="a bug"):
             handle([route("data"), RuntimeError("a bug")])
@@ -321,3 +362,32 @@ class TestMetering:
         assert all(c.output_tokens == OUTPUT_TOKENS for c in out.calls)
         assert all(c.seconds >= 0 for c in out.calls)
         assert out.model_calls == 3
+
+
+class TestMcpDoesNotHang:
+
+    def test_a_server_that_never_answers_fails_startup_instead_of_hanging(
+            self, tmp_path, monkeypatch):
+        silent = tmp_path / "silent_server.py"
+        silent.write_text("import time\ntime.sleep(120)\n")
+        monkeypatch.setattr(app_module, "MCP_SERVER", silent)
+        monkeypatch.setattr(app_module, "MCP_TIMEOUT_SECONDS", 2)
+
+        async def go():
+            async with RouterApp(model=ScriptedLlm(), data_dir=ROOT / "data"):
+                pass
+        with pytest.raises(McpUnavailable):
+            asyncio.run(asyncio.wait_for(go(), timeout=30))
+
+    def test_a_toolset_that_never_closes_does_not_hang_shutdown(self, monkeypatch):
+        monkeypatch.setattr(app_module, "MCP_TIMEOUT_SECONDS", 0.2)
+
+        class Stuck:
+            async def close(self):
+                await asyncio.Event().wait()
+
+        async def go():
+            app = RouterApp(model=ScriptedLlm(), data_dir=ROOT / "data")
+            app._toolsets = [Stuck()]
+            await app.__aexit__(None, None, None)
+        asyncio.run(asyncio.wait_for(go(), timeout=10))

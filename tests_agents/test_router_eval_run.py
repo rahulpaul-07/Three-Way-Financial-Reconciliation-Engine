@@ -11,6 +11,7 @@ import json
 import sys
 from pathlib import Path
 
+import anthropic
 import httpx
 import pytest
 
@@ -22,7 +23,7 @@ sys.path.insert(0, str(ROOT / "src"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import router_eval as ev  # noqa: E402
-from adk_helpers import ScriptedLlm, route, verdict  # noqa: E402
+from adk_helpers import HANG, ScriptedLlm, route, verdict  # noqa: E402
 from google.adk.models.llm_request import LlmRequest  # noqa: E402
 from google.genai import errors as genai_errors  # noqa: E402
 from live_engine_compare import CapReached, DailyLimit, Ledger, RetriesExhausted  # noqa: E402
@@ -41,6 +42,12 @@ def outage(code=503, headers=None) -> genai_errors.APIError:
         code, {"error": {"message": "high demand", "status": "UNAVAILABLE"}}, response)
 
 
+def claude_error(status: int, headers: dict | None = None) -> anthropic.APIStatusError:
+    request = httpx.Request("POST", "https://api.anthropic.com/v1/messages")
+    response = httpx.Response(status, headers=headers or {}, request=request)
+    return anthropic.APIStatusError(f"claude said {status}", response=response, body=None)
+
+
 def measured(script, tmp_path, cap=50):
     sleeps: list[float] = []
 
@@ -50,7 +57,7 @@ def measured(script, tmp_path, cap=50):
     ledger = Ledger(tmp_path / "ledger.json", cap)
     model = ev.MeasuredModel(model="scripted", inner=ScriptedLlm(script=list(script)),
                              ledger=ledger, sleep=fake_sleep, jitter=lambda: 0.0,
-                             waits=[], retries=0)
+                             call_timeout=0.2, waits=[], retries=0)
     return model, ledger, sleeps
 
 
@@ -131,6 +138,72 @@ class TestMeasuredModel:
         model.jitter = lambda: 0.5
         drain(model)
         assert sleeps == [3.0]
+
+    def test_a_claude_429_is_retried_after_its_retry_after_header(self, tmp_path):
+        model, ledger, sleeps = measured(
+            [claude_error(429, {"retry-after": "7"}), "ok"], tmp_path)
+        drain(model)
+        assert sleeps == [8.0]
+        assert (ledger.calls, ledger.retries) == (1, 1)
+
+    def test_a_claude_429_without_a_hint_backs_off(self, tmp_path):
+        model, _, sleeps = measured([claude_error(429), "ok"], tmp_path)
+        drain(model)
+        assert sleeps == [3.0]                  # 2s base plus the one-second cushion
+
+    def test_claude_529_overloaded_is_retried_then_succeeds(self, tmp_path):
+        model, ledger, sleeps = measured([claude_error(529), claude_error(529), "ok"], tmp_path)
+        drain(model)
+        assert sleeps == [2.0, 4.0]
+        assert (ledger.calls, ledger.retries) == (1, 2)
+
+    def test_claude_529_that_never_clears_stops_after_four_attempts(self, tmp_path):
+        model, _, _ = measured([claude_error(529)] * 10, tmp_path)
+        with pytest.raises(anthropic.APIStatusError) as caught:
+            drain(model)
+        assert caught.value.status_code == 529
+        assert len(model.inner.calls) == 4
+
+    @pytest.mark.parametrize("status", [500, 503, 504])
+    def test_claude_server_errors_are_retried(self, tmp_path, status):
+        model, _, sleeps = measured([claude_error(status), "ok"], tmp_path)
+        drain(model)
+        assert sleeps == [2.0]
+
+    @pytest.mark.parametrize("status", [400, 401, 403])
+    def test_claude_client_and_auth_errors_fail_fast(self, tmp_path, status):
+        model, ledger, sleeps = measured([claude_error(status)], tmp_path)
+        with pytest.raises(anthropic.APIStatusError):
+            drain(model)
+        assert sleeps == [] and ledger.retries == 0 and len(model.inner.calls) == 1
+
+    def test_a_call_that_never_returns_is_timed_out_and_retried(self, tmp_path):
+        model, ledger, sleeps = measured([HANG, "ok"], tmp_path)
+        drain(model)
+        assert sleeps == [2.0]
+        assert (ledger.calls, ledger.retries) == (1, 1)
+
+    def test_a_call_that_always_hangs_ends_as_a_timeout_after_four_attempts(self, tmp_path):
+        model, _, sleeps = measured([HANG] * 4, tmp_path)
+        with pytest.raises(TimeoutError):
+            drain(model)
+        assert len(model.inner.calls) == 4
+        assert sleeps == [2.0, 4.0, 8.0]
+
+    def test_each_failed_attempt_keeps_its_error_text(self, tmp_path):
+        model, _, _ = measured([claude_error(529), claude_error(503), "ok"], tmp_path)
+        drain(model)
+        assert len(model.errors) == 2
+        assert "529" in model.errors[0] and "503" in model.errors[1]
+
+    def test_stored_attempt_errors_are_truncated_and_scrubbed(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-fake-key-for-test")
+        long_text = "sk-fake-key-for-test " + "y" * 2000
+        model, _, _ = measured(
+            [genai_errors.APIError(503, {"error": {"message": long_text}}), "ok"], tmp_path)
+        drain(model)
+        assert len(model.errors[0]) <= 300
+        assert "sk-fake-key-for-test" not in model.errors[0]
 
     def test_other_api_errors_are_not_retried(self, tmp_path):
         model, ledger, sleeps = measured(
@@ -304,6 +377,38 @@ class TestRun:
         assert [r["id"] for r in doc["records"]] == ["R02", "R11", "R21"]
         assert json.loads((paths / "ledger.json").read_text())["retries"] == 3
 
+    def test_an_auth_failure_is_a_model_error_with_its_text_in_the_record(
+            self, paths, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-fake-key-for-test")
+        script = [route("investigator"), claude_error(401), route("human"), route("human")]
+        assert ev.run(args(paths, only="R02,R11,R21"), factory(script)) == 0
+        doc = json.loads((paths / "results" / "scripted_t.json").read_text())
+        record = doc["records"][0]
+        assert record["handoff_reason"] == "model_error"
+        assert "401" in record["handoff_detail"] and len(record["handoff_detail"]) <= 300
+        assert "sk-fake-key-for-test" not in json.dumps(doc)
+        assert any("401" in c["error"] for c in record["calls"])
+        assert record["retries"] == 0
+
+    def test_retried_attempt_errors_are_kept_on_the_record(self, paths, monkeypatch):
+        monkeypatch.setattr(ev, "BACKOFF_BASE_S", 0.0)
+        script = [route("investigator"), ("get_record_facts", {"entity_id": "ORD4026"}),
+                  claude_error(529), verdict("missing_payment"), route("human")]
+        ev.run(args(paths, only="R02,R21"), factory(script))
+        doc = json.loads((paths / "results" / "scripted_t.json").read_text())
+        assert doc["records"][0]["retries"] == 1
+        assert "529" in doc["records"][0]["attempt_errors"][0]
+
+    def test_a_request_that_hangs_is_recorded_with_its_own_reason_and_the_run_goes_on(
+            self, paths, monkeypatch):
+        monkeypatch.setattr(ev, "REQUEST_TIMEOUT_S", 0.5)
+        monkeypatch.setattr(ev, "CALL_TIMEOUT_S", 30)
+        script = [HANG, route("human"), route("human")]
+        assert ev.run(args(paths, only="R02,R11,R21"), factory(script)) == 0
+        doc = json.loads((paths / "results" / "scripted_t.json").read_text())
+        assert [r["handoff_reason"] for r in doc["records"]] == [
+            "request_timeout", "routed_to_human", "routed_to_human"]
+
     def test_summarise_names_the_unavailable_requests(self, paths, capsys):
         ev.run(args(paths), factory(SCRIPT))
         file = paths / "results" / "scripted_t.json"
@@ -321,6 +426,35 @@ class TestRun:
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
         assert ev.run(args(paths)) == 2
         assert not (paths / "ledger.json").exists()
+
+
+class TestModelChoice:
+
+    def test_a_claude_model_is_run_through_adks_native_anthropic_class(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-fake-key-for-test")
+        from google.adk.models.anthropic_llm import AnthropicLlm
+        model = ev._make_model("claude-haiku-5-5")
+        assert isinstance(model, AnthropicLlm) and model.model == "claude-haiku-5-5"
+        # The SDK's own retries would hide calls from the ledger and the cap.
+        assert model.client.max_retries == 0
+        assert model.client.timeout == ev.CLAUDE_CALL_TIMEOUT_S
+
+    def test_a_gemini_model_still_goes_through_adks_gemini_class(self):
+        from google.adk.models.google_llm import Gemini
+        assert isinstance(ev._make_model("gemini-3.8-flash"), Gemini)
+
+    @pytest.mark.parametrize("name, env", [("claude-haiku-5-5", "ANTHROPIC_API_KEY"),
+                                           ("gemini-3.8-flash", "GOOGLE_API_KEY")])
+    def test_each_provider_needs_its_own_key_and_no_call_is_made_without_it(
+            self, paths, monkeypatch, name, env):
+        monkeypatch.delenv(env, raising=False)
+        assert ev.run(args(paths, model=name)) == 2
+        assert not (paths / "ledger.json").exists()
+
+    def test_a_key_for_the_other_provider_does_not_satisfy_the_check(self, paths, monkeypatch):
+        monkeypatch.setenv("GOOGLE_API_KEY", "fake")
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        assert ev.run(args(paths, model="claude-haiku-5-5")) == 2
 
 
 class TestModelListing:

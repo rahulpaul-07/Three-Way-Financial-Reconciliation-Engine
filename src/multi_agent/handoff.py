@@ -16,6 +16,7 @@ class Reason(StrEnum):
     STEP_LIMIT = "step_limit"
     MODEL_ERROR = "model_error"
     PROVIDER_UNAVAILABLE = "provider_unavailable"
+    REQUEST_TIMEOUT = "request_timeout"
     UNGROUNDED_NUMBERS = "ungrounded_numbers"
     BUDGET_EXHAUSTED = "budget_exhausted"
 
