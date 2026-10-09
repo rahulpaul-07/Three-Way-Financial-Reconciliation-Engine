@@ -96,7 +96,7 @@ python3 src/report.py --data data --traces agent_traces.json \
                       --qa qa_answers.json --out report.html
 python3 src/ask.py --data data --demo --json qa_answers.json
 python3 -m pytest tests/ -q                           # 179 tests
-python3 -m pytest tests_agents/ -q                    # 324 more; needs requirements-multiagent.txt, Python 3.11+
+python3 -m pytest tests_agents/ -q                    # 351 more; needs requirements-multiagent.txt, Python 3.11+
 python3 src/evaluate.py --stress --compound --seeds 3 # where it breaks
 ```
 
@@ -347,7 +347,7 @@ The LangGraph engine has now been run against a live model (see
 [Live evaluation](#live-evaluation)); the MCP server and the SQL layer have not.
 The agent loops are tested with a scripted provider that plays a model,
 including a misbehaving one, and the SQL guards are tested directly with hostile
-queries. 324 tests in `tests_agents/`, which also cover the live-evaluation
+queries. 351 tests in `tests_agents/`, which also cover the live-evaluation
 harness, the subset-sum filter and the multi-agent router. The tests for the three layers are
 mutation-checked: deliberate bugs were introduced one at a time (the authorizer,
 the function allowlist, the step limit, the closed tool registry, a wrapper that
@@ -392,11 +392,18 @@ correct result about a genuine break, and it is returned. A request becomes a
 handoff, with a note for a person, only when the router chooses `human`; the
 investigator reports `unexplained` or gives an unusable verdict; a verdict has no
 successful tool call behind it; a specialist hits its step limit; the model
-fails; a figure cannot be traced to a query result; or the call budget runs out.
+fails; a figure cannot be traced to a query result even after one repair round; or the call
+budget runs out. The repair round: when the data agent's answer contains figures no
+query returned (a total it added up itself, say), the agent gets one follow-up in the
+same session naming those figures, inside the same call budget and step limit, and
+the unchanged grounding check runs again on the new answer. The result record says
+whether a repair happened and `summarise` counts repaired answers against repaired
+handoffs.
 The note states the request, which agent tried, the tools it called with their
 arguments, and why it stopped. The no-evidence trigger is stricter than the
 original agent; see D15 in `DECISIONS.md`. A 500, 503, 504 or 529 from the
-provider, or a model call that gets no answer in 60 seconds, is retried up to
+provider, a dropped or refused connection, or a model call that gets no answer in 60
+seconds, is retried up to
 four attempts with backoff (the provider's Retry-After is honoured) in the
 evaluation runner; if it persists the request is recorded as
 `provider_unavailable`, listed by ID in the summary and left out of every rate,
@@ -654,7 +661,7 @@ Every push runs seven jobs, and a separate workflow publishes the dashboard to G
 | `web` | the site data builds from a clean checkout, the dashboard type-checks, builds and prerenders, and the engine serves it |
 | `provider-degradation` | the engine reconciles correctly with **no** language model configured |
 | `agent-layers` | the tests in `tests_agents/` that need only `requirements-agents.txt` (MCP server, LangGraph agent, SQL layer, live-evaluation harness, subset-sum filter) pass on Python 3.11 through 3.13; the router tests skip themselves there |
-| `multi-agent` | all 324 tests in `tests_agents/`, router included, pass with `requirements-multiagent.txt` on Python 3.11 through 3.13 |
+| `multi-agent` | all 351 tests in `tests_agents/`, router included, pass with `requirements-multiagent.txt` on Python 3.11 through 3.13 |
 
 The `reconcile` job asserts the exact accuracy figure. A regression that lowers
 it fails the build rather than quietly changing a number in this file.

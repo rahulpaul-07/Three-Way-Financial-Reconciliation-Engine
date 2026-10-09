@@ -1028,3 +1028,29 @@ No prompt has been tuned against the evaluation set. If one is, each change
 will be logged here with the numbers before and after, and the README will say
 which figures were measured after tuning.
 
+### 2026-10-09 - The Claude smoke run showed a dropped connection and a self-computed total.
+
+Two things came out of the first Haiku smoke run (`--only R02,R11,R21`).
+
+R02 failed at once with `APIConnectionError: Connection error`, recorded as
+`model_error`. Only HTTP status codes and timeouts were treated as a provider
+outage; a refused or dropped connection was not, so it was neither retried nor
+left out of the rates. It now follows the same path as a 503: the same backoff,
+and `provider_unavailable` after the fourth attempt. This covers Anthropic's
+`APIConnectionError` and `httpx`'s transport errors, which is what Google's
+client raises.
+
+R11 (an item in the evaluation set) was routed to the data agent correctly and
+then ended as `ungrounded_numbers`: the agent added four per-method counts into
+a total of 120 that no query had returned. The grounding check was right to
+refuse it. The data agent now gets one repair round: a follow-up in the same
+session naming the exact figures ("these figures appear in no query result: 120;
+run a query that returns them or remove them"), inside the same call budget and
+step limit, and the unchanged check runs again on the new answer. This was added
+after seeing R11 fail, but it is a general change, not a fix for R11: it applies
+to every data answer with ungrounded figures, nothing in it mentions R11 or any
+other item, and the check itself was not loosened. Because an evaluation item
+prompted it, results from before this change are not comparable on the data
+agent, and any improvement on R11 should be read with that in mind. The result
+record carries `repaired`, and `summarise` reports how many answers were
+repaired against how many were handed off after a repair.

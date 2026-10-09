@@ -400,3 +400,11 @@ Behaviours that follow from the choice:
   `RunStopped` (cap, daily limit, retries exhausted) is declared fatal by the
   runner and still stops it. Unlike `provider_unavailable`, `internal_error`
   stays in every rate: it is this code's failure.
+- A refused, reset or dropped connection (`httpx` transport errors, Anthropic's
+  `APIConnectionError`) is retried and ends as `provider_unavailable` like a 503,
+  because it says the service was not reached, not that the request was wrong.
+- The data agent gets one repair round when its answer has figures no query
+  returned: one follow-up in the same session naming them, inside the same call
+  budget and step limit. The grounding check is not loosened; it runs again on the
+  new answer and a second failure is the same handoff as before. If the budget or
+  step limit leaves no room, the first answer is judged as it stands.
