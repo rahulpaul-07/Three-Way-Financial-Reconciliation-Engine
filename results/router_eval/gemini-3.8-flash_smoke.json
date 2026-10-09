@@ -1,0 +1,170 @@
+{
+  "meta": {
+    "model": "gemini-3.8-flash",
+    "data": "data",
+    "reps": 1,
+    "rep_offset": 0,
+    "budget": 7,
+    "prompt_sha": "a925d5f31973",
+    "request_ids": [
+      "R02",
+      "R11",
+      "R21"
+    ],
+    "sessions": [
+      {
+        "started_utc": "2026-10-08T23:03:07+00:00",
+        "git_head": "800d409",
+        "command": "scripts\\router_eval.py run --model gemini-3.8-flash --label smoke --only R02,R11,R21 --reps 1 --cap 20",
+        "resumed_records": 0,
+        "retries": 0,
+        "status": "complete",
+        "calls": 6
+      }
+    ],
+    "cap": 20,
+    "status": "complete",
+    "ledger_calls_total": 6
+  },
+  "records": [
+    {
+      "id": "R02",
+      "rep": 1,
+      "expected_route": "investigator",
+      "route": "investigator",
+      "status": "answered",
+      "handoff_reason": null,
+      "handoff_agent": null,
+      "answer_agent": "investigator",
+      "answer_text": "Order ORD4026 is recorded in the merchant ledger as paid for 349.00 INR via UPI on 2026-08-10T17:35:00. However, find_related_transactions confirmed that no gateway transactions reference ORD4026. As there is no counterpart payment transaction in the gateway, this represents a missing payment.",
+      "classification": "missing_payment",
+      "resolved": false,
+      "model_calls": 4,
+      "calls": [
+        {
+          "agent": "router",
+          "input_tokens": 317,
+          "output_tokens": 26,
+          "seconds": 6.0310000000172295
+        },
+        {
+          "agent": "investigator",
+          "input_tokens": 2216,
+          "output_tokens": 46,
+          "seconds": 4.73399999999674
+        },
+        {
+          "agent": "investigator",
+          "input_tokens": 2650,
+          "output_tokens": 56,
+          "seconds": 2.6410000000032596
+        },
+        {
+          "agent": "investigator",
+          "input_tokens": 3401,
+          "output_tokens": 165,
+          "seconds": 6.35899999999674
+        }
+      ],
+      "tools": [
+        {
+          "agent": "investigator",
+          "name": "get_order",
+          "args": {
+            "order_id": "ORD4026"
+          },
+          "ok": true
+        },
+        {
+          "agent": "investigator",
+          "name": "find_related_transactions",
+          "args": {
+            "order_id": "ORD4026"
+          },
+          "ok": false
+        },
+        {
+          "agent": "investigator",
+          "name": "get_record_facts",
+          "args": {
+            "entity_id": "ORD4026"
+          },
+          "ok": true
+        },
+        {
+          "agent": "investigator",
+          "name": "search_transactions_by_amount",
+          "args": {
+            "tolerance_paise": 0,
+            "amount_paise": 34900
+          },
+          "ok": true
+        }
+      ],
+      "router_raw": "{\"route\": \"investigator\", \"reason\": \"The user is asking why a specific order record is missing a payment.\"}",
+      "seconds": 22.78,
+      "seconds_excluding_waits": 22.78,
+      "retries": 0,
+      "input_tokens": 8584,
+      "output_tokens": 293
+    },
+    {
+      "id": "R11",
+      "rep": 1,
+      "expected_route": "data",
+      "route": null,
+      "status": "handoff",
+      "handoff_reason": "model_error",
+      "handoff_agent": "router",
+      "answer_agent": null,
+      "answer_text": "",
+      "classification": null,
+      "resolved": null,
+      "model_calls": 1,
+      "calls": [
+        {
+          "agent": "router",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "seconds": 3.2179999999934807
+        }
+      ],
+      "tools": [],
+      "router_raw": "",
+      "seconds": 3.24,
+      "seconds_excluding_waits": 3.24,
+      "retries": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "id": "R21",
+      "rep": 1,
+      "expected_route": "human",
+      "route": "human",
+      "status": "handoff",
+      "handoff_reason": "routed_to_human",
+      "handoff_agent": null,
+      "answer_agent": null,
+      "answer_text": "",
+      "classification": null,
+      "resolved": null,
+      "model_calls": 1,
+      "calls": [
+        {
+          "agent": "router",
+          "input_tokens": 306,
+          "output_tokens": 24,
+          "seconds": 1.812999999994645
+        }
+      ],
+      "tools": [],
+      "router_raw": "{\"route\": \"human\", \"reason\": \"Requests to delete or modify records must be handled by a human.\"}",
+      "seconds": 1.82,
+      "seconds_excluding_waits": 1.82,
+      "retries": 0,
+      "input_tokens": 306,
+      "output_tokens": 24
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "meta": {
+    "model": "gemini-3.8-flash",
+    "data": "data",
+    "reps": 1,
+    "rep_offset": 0,
+    "budget": 7,
+    "prompt_sha": "a925d5f31973",
+    "request_ids": [
+      "R02",
+      "R11",
+      "R21"
+    ],
+    "sessions": [
+      {
+        "started_utc": "2026-10-09T00:06:26+00:00",
+        "git_head": "b44efdf",
+        "command": "scripts\\router_eval.py run --model gemini-3.8-flash --label smoke4 --only R02,R11,R21 --reps 1 --cap 40",
+        "resumed_records": 0,
+        "discarded_request": "rep 1 R02",
+        "retries": 2,
+        "status": "incomplete: daily limit: \nOn how to mitigate this issue, please refer to:\n\nhttps://google.github.io/adk-docs/agents/models/google-gemini/#error-code-429-resource_exhausted\n\n\n429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'me",
+        "calls": 2
+      }
+    ],
+    "cap": 40,
+    "status": "incomplete: daily limit: \nOn how to mitigate this issue, please refer to:\n\nhttps://google.github.io/adk-docs/agents/models/google-gemini/#error-code-429-resource_exhausted\n\n\n429 RESOURCE_EXHAUSTED. {'error': {'code': 429, 'me",
+    "ledger_calls_total": 14
+  },
+  "records": []
+}
