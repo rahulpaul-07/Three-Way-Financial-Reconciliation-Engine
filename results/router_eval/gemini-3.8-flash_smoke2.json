@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "model": "gemini-3.8-flash",
+    "data": "data",
+    "reps": 1,
+    "rep_offset": 0,
+    "budget": 7,
+    "prompt_sha": "a925d5f31973",
+    "request_ids": [
+      "R02",
+      "R11",
+      "R21"
+    ],
+    "sessions": [
+      {
+        "started_utc": "2026-10-08T23:31:45+00:00",
+        "git_head": "b44efdf",
+        "command": "scripts\\router_eval.py run --model gemini-3.8-flash --label smoke2 --only R02,R11,R21 --reps 1 --cap 20",
+        "resumed_records": 0,
+        "retries": 10,
+        "status": "complete",
+        "calls": 3
+      }
+    ],
+    "cap": 20,
+    "status": "complete",
+    "ledger_calls_total": 9
+  },
+  "records": [
+    {
+      "id": "R02",
+      "rep": 1,
+      "expected_route": "investigator",
+      "route": null,
+      "status": "handoff",
+      "handoff_reason": "provider_unavailable",
+      "handoff_agent": "router",
+      "answer_agent": null,
+      "answer_text": "",
+      "classification": null,
+      "resolved": null,
+      "model_calls": 1,
+      "calls": [
+        {
+          "agent": "router",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "seconds": 42.234000000025844
+        }
+      ],
+      "tools": [],
+      "router_raw": "",
+      "seconds": 44.89,
+      "seconds_excluding_waits": 44.89,
+      "retries": 3,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "id": "R11",
+      "rep": 1,
+      "expected_route": "data",
+      "route": null,
+      "status": "handoff",
+      "handoff_reason": "provider_unavailable",
+      "handoff_agent": "router",
+      "answer_agent": null,
+      "answer_text": "",
+      "classification": null,
+      "resolved": null,
+      "model_calls": 1,
+      "calls": [
+        {
+          "agent": "router",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "seconds": 45.405999999988126
+        }
+      ],
+      "tools": [],
+      "router_raw": "",
+      "seconds": 45.41,
+      "seconds_excluding_waits": 45.41,
+      "retries": 4,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "id": "R21",
+      "rep": 1,
+      "expected_route": "human",
+      "route": "human",
+      "status": "handoff",
+      "handoff_reason": "routed_to_human",
+      "handoff_agent": null,
+      "answer_agent": null,
+      "answer_text": "",
+      "classification": null,
+      "resolved": null,
+      "model_calls": 1,
+      "calls": [
+        {
+          "agent": "router",
+          "input_tokens": 306,
+          "output_tokens": 24,
+          "seconds": 925.3280000000086
+        }
+      ],
+      "tools": [],
+      "router_raw": "{\"route\": \"human\", \"reason\": \"Requests to delete or modify records must be handled by a human.\"}",
+      "seconds": 925.33,
+      "seconds_excluding_waits": 906.16,
+      "retries": 3,
+      "input_tokens": 306,
+      "output_tokens": 24
+    }
+  ]
+}

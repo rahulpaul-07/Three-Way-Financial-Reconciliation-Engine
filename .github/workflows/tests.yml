@@ -55,6 +55,27 @@ jobs:
         # the MCP server is exercised over a real stdio subprocess.
         run: python -m pytest tests_agents/ -q
 
+  multi-agent:
+    # The ADK router. Its own job and requirements file so the ADK dependency
+    # tree stays out of every other job. Runs the whole of tests_agents/ (the
+    # router tests skip themselves in agent-layers, where ADK is absent).
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install -r requirements-multiagent.txt
+      - name: Run the router tests
+        # No model and no network: a scripted model plays every agent, and
+        # the MCP server runs as a real stdio subprocess.
+        run: python -m pytest tests_agents/ -q
+
   lint:
     runs-on: ubuntu-latest
     steps:

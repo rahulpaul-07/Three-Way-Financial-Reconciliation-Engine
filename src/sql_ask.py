@@ -333,18 +333,78 @@ def _with_inr(names: list[str], raw: list[tuple]) -> tuple[list[str], list[dict]
 # Grounding check
 # --------------------------------------------------------------------------
 
-_NUM = re.compile(r"\d[\d,]*(?:\.\d+)?")
+_UNITS = [
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
+    "eighteen", "nineteen",
+]
+_TENS = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty",
+         "ninety"]
+_SCALES = {"hundred": 100, "thousand": 1000, "lakh": 100_000, "crore": 10_000_000,
+           "million": 1_000_000}
+_WORD_VALUES = {w: Decimal(n) for n, w in enumerate(_UNITS)}
+_WORD_VALUES.update({w: Decimal(20 + 10 * n) for n, w in enumerate(_TENS)})
+
+# A digit run, or a spelled number: a tens word with an optional unit
+# ("twenty-one"), a word from zero to nineteen, then an optional scale word.
+# The word-boundary edges keep "someone", "often" and "bone" from matching.
+_NUM = re.compile(
+    r"(?P<digits>\d[\d,]*(?:\.\d+)?)"
+    r"|\b(?P<word>(?:(?:" + "|".join(_TENS) + r")(?:[-\s](?:" + "|".join(_UNITS[1:10]) + r"))?"
+    r"|" + "|".join(reversed(_UNITS)) + r")"
+    r"(?:\s+(?:" + "|".join(_SCALES) + r"))?)\b",
+    re.IGNORECASE)
+
+# "one" is also a pronoun ("the one with the gap", "no one"). Where the words
+# around it show it is not counting anything, it is not a figure.
+_NOT_COUNTING_BEFORE = frozenset(
+    ["the", "no", "any", "every", "each", "this", "that", "which", "another", "whichever",
+     "first", "last", "other", "same", "next", "previous", "wrong", "right"])
+_NOT_COUNTING_AFTER = frozenset(["of", "another", "that", "which", "who", "whose"])
 
 
-def numbers_in(text: str) -> list[Decimal]:
-    out = []
-    for tok in _NUM.findall(text or ""):
-        tok = tok.rstrip(",").replace(",", "")
-        try:
-            out.append(Decimal(tok))
-        except InvalidOperation:
-            continue
+def _is_pronoun_one(text: str, start: int, end: int) -> bool:
+    if text[end:end + 1] == "-":
+        return True
+    before = re.search(r"(\w+)\W*$", text[:start])
+    after = re.match(r"\W*(\w+)", text[end:])
+    return bool((before and before.group(1).lower() in _NOT_COUNTING_BEFORE)
+                or (after and after.group(1).lower() in _NOT_COUNTING_AFTER))
+
+
+def _word_value(word: str) -> Decimal:
+    parts = re.split(r"[-\s]+", word.lower())
+    scale = Decimal(_SCALES[parts.pop()]) if parts[-1] in _SCALES else Decimal(1)
+    return sum((_WORD_VALUES[p] for p in parts), Decimal(0)) * scale
+
+
+def find_numbers(text: str, *, words: bool = True) -> list[tuple[str, Decimal]]:
+    """
+    Every number in `text` with its text as written: digit runs ("1,770.20")
+    and, unless `words` is off, spelled numbers ("Three", "twenty-one",
+    "two hundred"). The one reader the grounding check and the evaluation scorer
+    share, so a figure written as a word cannot slip past one and not the other.
+
+    Not read: "a dozen", ordinals, fractions, "one hundred and five".
+    """
+    out: list[tuple[str, Decimal]] = []
+    for m in _NUM.finditer(text or ""):
+        if m.group("digits") is not None:
+            tok = m.group("digits").rstrip(",")
+            try:
+                out.append((tok, Decimal(tok.replace(",", ""))))
+            except InvalidOperation:
+                continue
+        elif words:
+            word = m.group("word")
+            if word.lower() == "one" and _is_pronoun_one(text, m.start(), m.end()):
+                continue
+            out.append((word, _word_value(word)))
     return out
+
+
+def numbers_in(text: str, *, words: bool = True) -> list[Decimal]:
+    return [value for _, value in find_numbers(text, words=words)]
 
 
 def grounded_values(question: str, results: list[QueryResult]) -> set[Decimal]:
@@ -356,7 +416,7 @@ def grounded_values(question: str, results: list[QueryResult]) -> set[Decimal]:
     Numbers inside strings count, so dates ('2026-08-21'), identifiers
     ('setl_0003') and formatted amounts ('INR 1770.20') all ground their digits.
     """
-    allowed = set(numbers_in(question))
+    allowed = set(numbers_in(question))      # the user's own words count, spelled or not
     for r in results:
         if not r.ok:
             continue
@@ -364,7 +424,8 @@ def grounded_values(question: str, results: list[QueryResult]) -> set[Decimal]:
         for row in r.rows:
             for v in row.values():
                 if v is not None:
-                    allowed.update(numbers_in(str(v)))
+                    # Digits only: a word inside a text cell is not a result.
+                    allowed.update(numbers_in(str(v), words=False))
     return allowed
 
 
@@ -372,13 +433,9 @@ def ungrounded_numbers(answer: str, question: str,
                        results: list[QueryResult]) -> list[str]:
     allowed = grounded_values(question, results)
     seen: list[str] = []
-    for tok in _NUM.findall(answer or ""):
-        clean = tok.rstrip(",").replace(",", "")
-        try:
-            if Decimal(clean) not in allowed and tok.rstrip(",") not in seen:
-                seen.append(tok.rstrip(","))
-        except InvalidOperation:
-            continue
+    for token, value in find_numbers(answer):
+        if value not in allowed and token not in seen:
+            seen.append(token)
     return seen
 
 

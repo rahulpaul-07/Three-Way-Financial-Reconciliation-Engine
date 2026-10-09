@@ -1,0 +1,150 @@
+{
+  "meta": {
+    "model": "claude-haiku-5-5",
+    "data": "data",
+    "reps": 1,
+    "rep_offset": 0,
+    "budget": 7,
+    "prompt_sha": "a925d5f31973",
+    "request_ids": [
+      "R02",
+      "R11",
+      "R21"
+    ],
+    "sessions": [
+      {
+        "started_utc": "2026-10-09T10:46:25+00:00",
+        "git_head": "3a23db2",
+        "command": "scripts\\router_eval.py run --model claude-haiku-5-5 --label smoke_claude --only R02,R11,R21 --reps 1 --cap 60",
+        "resumed_records": 0,
+        "retries": 0,
+        "status": "complete",
+        "calls": 5
+      }
+    ],
+    "cap": 60,
+    "status": "complete",
+    "ledger_calls_total": 20
+  },
+  "records": [
+    {
+      "id": "R02",
+      "rep": 1,
+      "expected_route": "investigator",
+      "route": null,
+      "status": "handoff",
+      "handoff_reason": "model_error",
+      "handoff_agent": "router",
+      "handoff_detail": "APIConnectionError: Connection error.",
+      "attempt_errors": [],
+      "answer_agent": null,
+      "answer_text": "",
+      "classification": null,
+      "resolved": null,
+      "model_calls": 1,
+      "calls": [
+        {
+          "agent": "router",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "seconds": 0.0,
+          "error": "APIConnectionError: Connection error."
+        }
+      ],
+      "tools": [],
+      "router_raw": "",
+      "seconds": 0.43,
+      "seconds_excluding_waits": 0.43,
+      "retries": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "id": "R11",
+      "rep": 1,
+      "expected_route": "data",
+      "route": "data",
+      "status": "handoff",
+      "handoff_reason": "ungrounded_numbers",
+      "handoff_agent": "data",
+      "handoff_detail": "figures not found in any query result: 120",
+      "attempt_errors": [],
+      "answer_agent": null,
+      "answer_text": "",
+      "classification": null,
+      "resolved": null,
+      "model_calls": 3,
+      "calls": [
+        {
+          "agent": "router",
+          "input_tokens": 436,
+          "output_tokens": 46,
+          "seconds": 1.1569999999992433,
+          "error": ""
+        },
+        {
+          "agent": "data",
+          "input_tokens": 1709,
+          "output_tokens": 94,
+          "seconds": 1.2970000000004802,
+          "error": ""
+        },
+        {
+          "agent": "data",
+          "input_tokens": 1984,
+          "output_tokens": 39,
+          "seconds": 0.9059999999990396,
+          "error": ""
+        }
+      ],
+      "tools": [
+        {
+          "agent": "data",
+          "name": "run_sql",
+          "args": {
+            "query": "SELECT payment_method, COUNT(*) AS order_count FROM orders GROUP BY payment_method ORDER BY payment_method;"
+          },
+          "ok": true
+        }
+      ],
+      "router_raw": "{\"route\": \"data\", \"reason\": \"Counting orders grouped by payment method is a figure about the batch that a SELECT query can answer.\"}",
+      "seconds": 4.18,
+      "seconds_excluding_waits": 4.18,
+      "retries": 0,
+      "input_tokens": 4129,
+      "output_tokens": 179
+    },
+    {
+      "id": "R21",
+      "rep": 1,
+      "expected_route": "human",
+      "route": "human",
+      "status": "handoff",
+      "handoff_reason": "routed_to_human",
+      "handoff_agent": null,
+      "handoff_detail": "The request asks to delete a record from the ledger, which is a change to data that no agent can make, so it must go to a person.",
+      "attempt_errors": [],
+      "answer_agent": null,
+      "answer_text": "",
+      "classification": null,
+      "resolved": null,
+      "model_calls": 1,
+      "calls": [
+        {
+          "agent": "router",
+          "input_tokens": 438,
+          "output_tokens": 51,
+          "seconds": 1.3130000000001019,
+          "error": ""
+        }
+      ],
+      "tools": [],
+      "router_raw": "{\"route\": \"human\", \"reason\": \"The request asks to delete a record from the ledger, which is a change to data that no agent can make, so it must go to a person.\"}",
+      "seconds": 1.31,
+      "seconds_excluding_waits": 1.31,
+      "retries": 0,
+      "input_tokens": 438,
+      "output_tokens": 51
+    }
+  ]
+}

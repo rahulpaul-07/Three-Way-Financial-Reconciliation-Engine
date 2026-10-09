@@ -1,0 +1,118 @@
+{
+  "meta": {
+    "model": "gemini-2.5-flash",
+    "data": "data",
+    "reps": 1,
+    "rep_offset": 0,
+    "budget": 7,
+    "prompt_sha": "a925d5f31973",
+    "request_ids": [
+      "R02",
+      "R11",
+      "R21"
+    ],
+    "sessions": [
+      {
+        "started_utc": "2026-10-08T23:55:00+00:00",
+        "git_head": "b44efdf",
+        "command": "scripts\\router_eval.py run --model gemini-2.5-flash --label smoke3 --only R02,R11,R21 --reps 1 --cap 30",
+        "resumed_records": 0,
+        "retries": 0,
+        "status": "complete",
+        "calls": 3
+      }
+    ],
+    "cap": 30,
+    "status": "complete",
+    "ledger_calls_total": 12
+  },
+  "records": [
+    {
+      "id": "R02",
+      "rep": 1,
+      "expected_route": "investigator",
+      "route": null,
+      "status": "handoff",
+      "handoff_reason": "model_error",
+      "handoff_agent": "router",
+      "answer_agent": null,
+      "answer_text": "",
+      "classification": null,
+      "resolved": null,
+      "model_calls": 1,
+      "calls": [
+        {
+          "agent": "router",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "seconds": 1.0
+        }
+      ],
+      "tools": [],
+      "router_raw": "",
+      "seconds": 3.75,
+      "seconds_excluding_waits": 3.75,
+      "retries": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "id": "R11",
+      "rep": 1,
+      "expected_route": "data",
+      "route": null,
+      "status": "handoff",
+      "handoff_reason": "model_error",
+      "handoff_agent": "router",
+      "answer_agent": null,
+      "answer_text": "",
+      "classification": null,
+      "resolved": null,
+      "model_calls": 1,
+      "calls": [
+        {
+          "agent": "router",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "seconds": 0.35899999999674037
+        }
+      ],
+      "tools": [],
+      "router_raw": "",
+      "seconds": 0.37,
+      "seconds_excluding_waits": 0.37,
+      "retries": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    },
+    {
+      "id": "R21",
+      "rep": 1,
+      "expected_route": "human",
+      "route": null,
+      "status": "handoff",
+      "handoff_reason": "model_error",
+      "handoff_agent": "router",
+      "answer_agent": null,
+      "answer_text": "",
+      "classification": null,
+      "resolved": null,
+      "model_calls": 1,
+      "calls": [
+        {
+          "agent": "router",
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "seconds": 0.375
+        }
+      ],
+      "tools": [],
+      "router_raw": "",
+      "seconds": 0.39,
+      "seconds_excluding_waits": 0.39,
+      "retries": 0,
+      "input_tokens": 0,
+      "output_tokens": 0
+    }
+  ]
+}

@@ -20,6 +20,7 @@ D11. Failover walks provider AND model, and demotion is scoped by failure kind
 D12. Agent constraints are enforced in code so that they are testable
 D13. Contested matches are solved jointly, not sequentially
 D14. Agreement with the agent is reported as kappa, not a percentage
+D15. Routing is an explicit orchestrator with code-validated routes, not transfer_to_agent
 
 ---
 
@@ -305,3 +306,105 @@ chance alone would produce: 92.3% raw becomes 0.90.
 **Stated with its own caveat.** On thirteen records kappa is an unstable
 estimate and should be read as an indication rather than a measurement. A
 confident kappa on a sample this size would be its own kind of overclaiming.
+
+---
+
+## D15 - Routing is an explicit orchestrator with code-validated routes, not transfer_to_agent
+
+**Chosen:** the router is an ADK agent that proposes a destination as JSON, and
+plain code (`RouterApp.handle`) validates it, runs the chosen specialist in a
+session of its own, and judges the result. The code accepts exactly three
+values, `investigator`, `data` and `human`; anything else is a handoff to a
+person.
+
+**Why:** ADK's built-in route is `sub_agents` plus `transfer_to_agent`, where
+the model names the next agent and the framework follows. That makes the
+routing decision, the handoff and the stopping rule all model behaviour. The
+rules this feature has to guarantee are the opposite kind: the router can reach
+only three destinations, each specialist sees only its own tools, the total
+number of model calls per request is capped across all agents, and every
+escalation ends in a written note. Each of those is a property of control flow,
+so each lives in control flow, where a scripted model can try to break it and a
+test can fail. The agents are still ADK agents with real MCP tools; only the
+hand-off between them is code.
+
+**Rejected:**
+- *`sub_agents` with `transfer_to_agent`.* One shared session, a model-chosen
+  destination the framework does not validate against a closed set, and no
+  natural place for a cross-agent call budget or a handoff note.
+- *A custom ADK `BaseAgent` that does the orchestration.* Same behaviour as the
+  plain function, with more framework to explain and the event stream to
+  thread through.
+- *LangGraph.* Would have been the fallback had ADK not worked with the MCP
+  server over stdio. It did, so the extra dependency was not earned.
+
+**`no_evidence` is stricter than the original agent.** `agent.py` accepts a
+classified verdict with no tool call behind it as long as it does not claim
+`resolved: true`; it only downgrades a claimed resolution. Here an investigator
+verdict with no successful tool call is a handoff (`no_evidence`) whatever it
+claims. A classification the model produced without looking at any record is a
+guess, and a front door that hands people guesses is worse than one that says
+"a person should look". The cost is a possible extra handoff on a request the
+old agent would have answered; the eval counts those as unneeded handoffs.
+
+**What is not a handoff.** A classified finding, such as `missing_payment` with
+`resolved: false`, is an answer: the investigation worked and found a genuine
+break. A handoff happens only on `unexplained`, an invalid verdict, no
+evidence, the step limit, a model error, an ungrounded figure, or an exhausted
+budget.
+
+
+
+## D16 - The evaluation runs Claude through ADK's native Anthropic class, not LiteLLM
+
+The first plan was Gemini. Its free tier allows 20 requests per day for
+`gemini-3.8-flash` and `gemini-2.5-flash` returns 404 for new accounts, while
+the full evaluation needs about 220 calls. The agents stay ADK agents; only the
+model changes, to `claude-haiku-5-5`.
+
+ADK 2.11.0 ships `AnthropicLlm` (`google.adk.models.anthropic_llm`). The brief
+suggested LiteLLM. The native class is used instead because LiteLLM would add a
+second translation layer with its own retry loop and its own exception types,
+between the ledger and the provider, on a run where every call is counted and
+priced. With `AnthropicLlm` the errors that arrive are the Anthropic SDK's, so
+the status codes map directly. The cost is that the connector is tied to the
+`anthropic` SDK, which is pinned in `requirements-multiagent.txt`.
+
+Behaviours that follow from the choice:
+
+- The client is built with `max_retries=0`. The SDK would otherwise retry inside
+  a call where the ledger and the cap cannot see it; `MeasuredModel` owns every
+  retry.
+- 429 is a rate limit (Retry-After honoured). 500, 503, 504 and 529, and a call
+  with no answer in 60 seconds, are provider outages: retried up to four
+  attempts, then `provider_unavailable`. 401 and 403 fail at once as
+  `model_error`.
+- A request that runs longer than 5 minutes becomes a handoff with the reason
+  `request_timeout`. It is not excluded from the rates, unlike
+  `provider_unavailable`: a request that is too slow is a property of the
+  system, not only of the provider. Retry waits count inside the 5 minutes.
+- The scrubbed error text, cut to 300 characters, is stored on every failed
+  call, handoff and retried attempt.
+- Sampling parameters are not sent to Claude. ADK's `AnthropicLlm` forwards
+  `temperature`, `top_p` and `top_k` whenever an agent's config sets them, and
+  our agents set `temperature=0`. The installed `anthropic` 1.12.1 (the newest
+  release) has no such parameters in `messages.create`, so the first live smoke
+  died with a `TypeError` before sending anything. `ClaudeLlm` drops the three
+  fields instead of the agents' config being made provider-specific, and
+  `tests_agents/test_claude_transport.py` runs the real client over a mocked
+  HTTP transport so a mismatch of this kind fails in CI. The pin was not the
+  problem: ADK 2.11.0 declares `anthropic>=0.78`, so it is compatible with this
+  version on paper but not in this call.
+- An unexpected exception inside a request is an `internal_error` handoff, with
+  the scrubbed text and the logged traceback, so one bug does not end a paid run.
+  `RunStopped` (cap, daily limit, retries exhausted) is declared fatal by the
+  runner and still stops it. Unlike `provider_unavailable`, `internal_error`
+  stays in every rate: it is this code's failure.
+- A refused, reset or dropped connection (`httpx` transport errors, Anthropic's
+  `APIConnectionError`) is retried and ends as `provider_unavailable` like a 503,
+  because it says the service was not reached, not that the request was wrong.
+- The data agent gets one repair round when its answer has figures no query
+  returned: one follow-up in the same session naming them, inside the same call
+  budget and step limit. The grounding check is not loosened; it runs again on the
+  new answer and a second failure is the same handoff as before. If the budget or
+  step limit leaves no room, the first answer is judged as it stands.

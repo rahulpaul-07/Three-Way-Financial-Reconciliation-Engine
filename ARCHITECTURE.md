@@ -321,6 +321,45 @@ itself still has the prompt-only rule described above.
 
 ---
 
+### Multi-agent router (`src/multi_agent/`)
+
+A front door for plain-English requests: three Google ADK agents, with the
+routing enforced in code rather than left to the model.
+
+```
+request --> router agent (no tools) --> {"route": ...}
+                 |
+        RouterApp validates: investigator | data | human, else human
+                 |
+   +-------------+---------------+------------------+
+   |                             |                  |
+investigator agent          data agent          handoff note
+11 MCP tools, read only     run_sql only        (no agent tried)
+   |                             |
+ verdict judged             answer's figures checked
+ (unexplained, invalid,     against the query results
+  no evidence -> handoff)   (ungrounded -> handoff)
+```
+
+Every agent gets its tools from `src/mcp_server.py` over stdio, filtered to its
+own closed set. Every agent also reaches the model through one wrapper
+(`BudgetedModel`) that counts calls against a per-request budget, applies the
+agent's own step limit (the existing 5 and 6), and records tokens and latency.
+When a limit trips, a specialist fails, or a verdict cannot be trusted, the
+request ends as a `Handoff` whose note names the request, which agent tried,
+which tools it called with what arguments, and why it stopped.
+
+The prompts and parsers are the existing engine's own, imported rather than
+copied. `RouterApp.handle` is ordinary code, not an ADK `sub_agents` transfer
+(see D15). The request text is only ever a user message; it is never placed in
+an instruction.
+
+The closed tool sets, the budget, the step limits, the route whitelist and the
+figure check are code, tested with a scripted model that misbehaves on purpose.
+Whether the router chooses well is a model property, measured by
+`scripts/router_eval.py` on 30 fixed requests, and the data agent's SQL can
+still ask the wrong question.
+
 ### The same boundary over HTTP
 
 The web interface does not weaken any of the above. `/ask` and `/investigate`
@@ -484,6 +523,8 @@ src/report.py         self-contained HTML report
 src/taxonomy.py       every classification with its severity, in one place
 src/analysis.py       JSON view of a run (API responses, site snapshots)
 src/app.py            web interface, JSON API, dashboard hosting
+src/multi_agent/      ADK router: router, investigator and data agents, budget, handoff
+scripts/router_eval.py  runs and scores the 30-request router evaluation
 web/                  React dashboard; computes nothing about reconciliation
 ```
 
