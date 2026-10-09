@@ -422,10 +422,89 @@ class TestRun:
         assert "provider_unavailable: 1 ['R11']" in out
         assert "2 request runs scored" in out
 
+    def test_a_crash_inside_a_request_is_recorded_as_internal_error_and_the_run_goes_on(
+            self, paths, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-fake-key-for-test")
+        bug = TypeError("create() got an unexpected keyword argument 'temperature' "
+                        "sk-fake-key-for-test " + "x" * 2000)
+        script = [route("investigator"), bug, route("human"), route("human")]
+        assert ev.run(args(paths, only="R02,R11,R21"), factory(script)) == 0
+        doc = json.loads((paths / "results" / "scripted_t.json").read_text())
+        assert doc["meta"]["status"] == "complete"
+        assert [r["handoff_reason"] for r in doc["records"]] == [
+            "internal_error", "routed_to_human", "routed_to_human"]
+        first = doc["records"][0]
+        assert first["handoff_detail"].startswith("TypeError")
+        assert len(first["handoff_detail"]) <= 300
+        assert "sk-fake-key-for-test" not in json.dumps(doc)
+        assert first["handoff_agent"] == "investigator"
+
+    def test_a_spend_cap_still_stops_the_run_rather_than_becoming_an_internal_error(
+            self, paths):
+        assert ev.run(args(paths, cap=2), factory(SCRIPT)) == 1
+        doc = json.loads((paths / "results" / "scripted_t.json").read_text())
+        assert doc["meta"]["status"].startswith("incomplete")
+        assert "internal_error" not in [r["handoff_reason"] for r in doc["records"]]
+
+    def test_summarise_lists_internal_errors_and_keeps_them_in_the_rates(
+            self, paths, capsys):
+        ev.run(args(paths), factory(SCRIPT))
+        file = paths / "results" / "scripted_t.json"
+        doc = json.loads(file.read_text())
+        doc["records"][1].update(status="handoff", handoff_reason="internal_error",
+                                 answer_text="", route="data")
+        file.write_text(json.dumps(doc))
+        ns = argparse.Namespace(files=[str(file)], price_in=None, price_out=None)
+        assert ev.summarise(ns) == 0
+        out = capsys.readouterr().out
+        assert "internal_error: 1 ['R11']" in out
+        assert "3 request runs scored" in out          # unlike provider_unavailable
+
     def test_a_missing_key_means_no_call_is_made(self, paths, monkeypatch):
         monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
         assert ev.run(args(paths)) == 2
         assert not (paths / "ledger.json").exists()
+
+
+class TestPreflight:
+    """One tiny real call before the first request, so a broken setup stops the
+    run before it writes anything or spends from the cap."""
+
+    def go(self, paths, script, **kw):
+        return ev.run(args(paths), factory(script), probe=ev.preflight, **kw)
+
+    def test_a_working_model_is_probed_and_the_probe_is_not_an_eval_call(self, paths):
+        assert self.go(paths, ["OK", *SCRIPT]) == 0
+        doc = json.loads((paths / "results" / "scripted_t.json").read_text())
+        assert doc["meta"]["ledger_calls_total"] == len(SCRIPT)
+        assert json.loads((paths / "ledger.json").read_text())["calls"] == len(SCRIPT)
+
+    def test_a_failing_probe_stops_the_run_cleanly_with_one_line(self, paths, capsys):
+        error = TypeError("create() got an unexpected keyword argument 'temperature'")
+        assert self.go(paths, [error]) == 3
+        err = capsys.readouterr().err.strip().splitlines()
+        assert len(err) == 1 and err[0].startswith("preflight failed")
+        assert "TypeError" in err[0] and "temperature" in err[0]
+        assert not (paths / "results").exists() and not (paths / "ledger.json").exists()
+
+    def test_a_probe_that_never_returns_fails_instead_of_hanging(self, paths, monkeypatch):
+        monkeypatch.setattr(ev, "CALL_TIMEOUT_S", 0.2)
+        assert self.go(paths, [HANG]) == 3
+        assert not (paths / "results").exists()
+
+    def test_a_provider_error_in_the_probe_is_not_retried(self, paths):
+        model = ScriptedLlm(script=[claude_error(529), "OK"])
+        assert ev.run(args(paths), lambda: model, probe=ev.preflight) == 3
+        assert len(model.calls) == 1
+
+    def test_the_probe_failure_text_is_scrubbed_and_short(self, paths, monkeypatch, capsys):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-fake-key-for-test")
+        assert self.go(paths, [RuntimeError("sk-fake-key-for-test " + "q" * 2000)]) == 3
+        err = capsys.readouterr().err
+        assert "sk-fake-key-for-test" not in err and len(err) < 600
+
+    def test_no_probe_without_the_flag_so_scripted_runs_use_only_their_script(self, paths):
+        assert ev.run(args(paths), factory(SCRIPT)) == 0
 
 
 class TestModelChoice:
@@ -433,8 +512,12 @@ class TestModelChoice:
     def test_a_claude_model_is_run_through_adks_native_anthropic_class(self, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-fake-key-for-test")
         from google.adk.models.anthropic_llm import AnthropicLlm
+
+        from multi_agent.claude import ClaudeLlm
         model = ev._make_model("claude-haiku-5-5")
         assert isinstance(model, AnthropicLlm) and model.model == "claude-haiku-5-5"
+        # Plain AnthropicLlm forwards temperature=0, which the SDK rejects.
+        assert type(model) is ClaudeLlm
         # The SDK's own retries would hide calls from the ledger and the cap.
         assert model.client.max_retries == 0
         assert model.client.timeout == ev.CLAUDE_CALL_TIMEOUT_S

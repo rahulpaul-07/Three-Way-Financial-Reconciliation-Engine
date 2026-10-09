@@ -253,16 +253,54 @@ class TestEscalationBecomesHandoff:
         async def stray(*_args):
             raise TimeoutError("some other timeout")
         monkeypatch.setattr(RouterApp, "_handle", stray)
+        out, _ = handle([])
+        assert out.handoff.reason is Reason.INTERNAL_ERROR
+        assert "some other timeout" in out.handoff.detail
+
+    def test_a_bug_becomes_an_internal_error_handoff_not_a_crash_or_a_model_error(self):
+        out, _ = handle([route("data"), RuntimeError("a bug")])
+        assert out.handoff.reason is Reason.INTERNAL_ERROR
+        assert out.handoff.detail.startswith("RuntimeError: a bug")
+        assert out.route == "data" and out.handoff.agent == "data"
+
+    def test_an_internal_error_keeps_the_trace_and_the_calls_made_so_far(self):
+        out, _ = handle([route("investigator"), FACTS, TypeError("bad keyword")])
+        assert out.handoff.reason is Reason.INTERNAL_ERROR
+        assert [t.name for t in out.handoff.tools] == ["get_record_facts"]
+        assert out.model_calls == 3
+
+    def test_the_internal_error_text_is_scrubbed_and_truncated(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-fake-key-for-test")
+        out, _ = handle([route("data"), RuntimeError("sk-fake-key-for-test " + "z" * 2000)])
+        assert "sk-fake-key-for-test" not in out.handoff.detail
+        assert len(out.handoff.detail) <= 300
+
+    def test_the_traceback_is_logged_with_the_key_scrubbed(self, monkeypatch, caplog):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-fake-key-for-test")
+        with caplog.at_level(logging.ERROR, logger="multi_agent.app"):
+            handle([route("data"), RuntimeError("sk-fake-key-for-test leaked")])
+        logged = " ".join(r.getMessage() for r in caplog.records
+                          if r.name == "multi_agent.app")
+        assert "RuntimeError" in logged and "Traceback" in logged
+        assert "sk-fake-key-for-test" not in logged
+
+    def test_an_exception_the_caller_declares_fatal_still_stops_the_run(self):
+        class Fatal(Exception):
+            pass
 
         async def go():
-            async with RouterApp(model=ScriptedLlm(), data_dir=ROOT / "data") as app:
+            model = ScriptedLlm(script=[Fatal("stop")])
+            async with RouterApp(model=model, data_dir=ROOT / "data", fatal=(Fatal,)) as app:
                 await app.handle("anything")
-        with pytest.raises(TimeoutError, match="some other timeout"):
+        with pytest.raises(Fatal):
             asyncio.run(go())
 
-    def test_a_bug_is_not_swallowed_as_a_model_error(self):
-        with pytest.raises(RuntimeError, match="a bug"):
-            handle([route("data"), RuntimeError("a bug")])
+    def test_a_cancelled_request_is_not_an_internal_error(self, monkeypatch):
+        async def cancelled(*_args):
+            raise asyncio.CancelledError
+        monkeypatch.setattr(RouterApp, "_handle", cancelled)
+        with pytest.raises(asyncio.CancelledError):
+            handle([])
 
 
 class TestGroundingOnTheDataPath:

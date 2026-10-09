@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
+import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -39,6 +40,8 @@ from .budget import (
     ProviderUnavailable,
     StepLimitExceeded,
     quiet_handled_errors,
+    scrub_secrets,
+    short_error,
 )
 from .handoff import Answer, Handoff, Reason, ToolUse
 from .routing import ROUTER_PROMPT, parse_route
@@ -89,8 +92,12 @@ class Outcome:
 class RouterApp:
     def __init__(self, model: BaseLlm, data_dir: str | Path = "data",
                  total_budget: int = DEFAULT_TOTAL_BUDGET,
-                 request_timeout: float = REQUEST_TIMEOUT_S):
+                 request_timeout: float = REQUEST_TIMEOUT_S,
+                 fatal: tuple[type[Exception], ...] = ()):
         self._model = model
+        # Exceptions the caller wants to stop its run (a spend cap, say); any
+        # other unexpected one becomes an internal_error handoff.
+        self._fatal = fatal
         self._request_timeout = request_timeout
         self._data_dir = str(data_dir)
         self._total_budget = total_budget
@@ -145,15 +152,26 @@ class RouterApp:
         try:
             async with limit:
                 return await self._handle(request, budget, outcome)
-        except TimeoutError:
+        except self._fatal:
+            raise
+        except Exception as exc:
             # Only this request's own limit is a request timeout. A TimeoutError
             # from a model call never gets here: the wrapper makes it a
             # ProviderUnavailable first.
-            if not limit.expired():
-                raise
-            handoff = Handoff(request, Reason.REQUEST_TIMEOUT,
-                              f"no result within {self._request_timeout:g}s",
-                              outcome.agent, outcome.tools)
+            if isinstance(exc, TimeoutError) and limit.expired():
+                handoff = Handoff(request, Reason.REQUEST_TIMEOUT,
+                                  f"no result within {self._request_timeout:g}s",
+                                  outcome.agent, outcome.tools)
+            else:
+                # A bug, not a model or provider failure. It is a handoff so one
+                # bad request does not end a run, and it is logged in full so it
+                # is not lost. Kept apart from model_error so it cannot hide in
+                # that count.
+                logger.error("unexpected error in a request: %s",
+                             scrub_secrets("".join(traceback.format_exception(exc))))
+                handoff = Handoff(request, Reason.INTERNAL_ERROR,
+                                  short_error(f"{type(exc).__name__}: {exc}"),
+                                  outcome.agent, outcome.tools)
             return self._finish(outcome, handoff=handoff)
 
     async def _handle(self, request: str, budget: CallBudget, outcome: Outcome) -> Outcome:

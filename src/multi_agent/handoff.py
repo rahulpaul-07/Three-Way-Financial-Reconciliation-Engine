@@ -17,6 +17,7 @@ class Reason(StrEnum):
     MODEL_ERROR = "model_error"
     PROVIDER_UNAVAILABLE = "provider_unavailable"
     REQUEST_TIMEOUT = "request_timeout"
+    INTERNAL_ERROR = "internal_error"
     UNGROUNDED_NUMBERS = "ungrounded_numbers"
     BUDGET_EXHAUSTED = "budget_exhausted"
 
